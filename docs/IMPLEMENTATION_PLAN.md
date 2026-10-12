@@ -28,9 +28,16 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       MinIO's Docker Hub images now require a paid account; see CLAUDE.md decision log.
       `docker compose up` → postgres+redis+garage all healthy, pgvector extension installs,
       ruff/black/pytest clean on api, eslint/prettier/build clean on web.
-- [ ] **1.2 Backend skeleton** — FastAPI app, settings, logging, error format, `/health`,
+- [x] **1.2 Backend skeleton** — FastAPI app, settings, logging, error format, `/health`,
       SQLAlchemy session, Alembic configured.
       Done when: `/health` returns db + redis status; pytest runs.
+      ✅ 2026-10-13 — `/health` reports `{"status","database","redis"}`, both `ok` against
+      local docker-compose. Uniform `{"error":{"code","message"}}` shape verified for
+      explicit HTTPExceptions, unhandled exceptions, and routing-level 404s (had to
+      register on `starlette.exceptions.HTTPException`, not `fastapi.exceptions.HTTPException`
+      — the latter is a subclass in the installed FastAPI version and routing raises the
+      base class, so a handler on the subclass alone misses it). Alembic upgrade/downgrade
+      verified against local Postgres. 5/5 pytest, ruff/black clean.
 - [ ] **1.3 Database schema** — all tables: users, projects, ifc_files, elements, quantities,
       code_list (vector), classifications, reviews, example_memory (vector), rules, exports, jobs.
       Done when: migration up/down works; model tests pass.
