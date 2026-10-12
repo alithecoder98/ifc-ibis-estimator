@@ -21,9 +21,13 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       Done when: validator passes on a hand-filled sample of 20 rows.
 
 ## Phase 1 — Foundation (week 2)
-- [ ] **1.1 Monorepo scaffold** — folders per CLAUDE.md, docker-compose (postgres+pgvector, redis),
+- [x] **1.1 Monorepo scaffold** — folders per CLAUDE.md, docker-compose (postgres+pgvector, redis),
       .env.example, pre-commit (ruff, black, eslint, prettier), README.
       Done when: `docker compose up` starts db + redis; linters run clean.
+      ✅ 2026-10-13 — also added Garage (S3-compatible storage) to docker-compose since
+      MinIO's Docker Hub images now require a paid account; see CLAUDE.md decision log.
+      `docker compose up` → postgres+redis+garage all healthy, pgvector extension installs,
+      ruff/black/pytest clean on api, eslint/prettier/build clean on web.
 - [ ] **1.2 Backend skeleton** — FastAPI app, settings, logging, error format, `/health`,
       SQLAlchemy session, Alembic configured.
       Done when: `/health` returns db + redis status; pytest runs.

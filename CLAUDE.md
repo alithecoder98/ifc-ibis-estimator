@@ -142,8 +142,11 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 
 ## Current status
 
-**Phase:** 1 — Foundation, starting now.
-**Last session:** 2026-10-12 — reconciled the detailed implementation plan/prompts into
-`docs/`, rewrote this charter to match (stack, data model draft, targets, gates). No code
-yet.
-**Next up:** sub-phase 1.1 — Monorepo scaffold.
+**Phase:** 1 — Foundation, in progress.
+**Last session:** 2026-10-13 — completed sub-phase 1.1 (monorepo scaffold): `apps/web`
+(Next 15 + TS + Tailwind + shadcn/ui), `apps/api` (FastAPI skeleton + uv), docker-compose
+(Postgres16+pgvector, Redis, Garage), pre-commit, root README. Branch
+`phase-1.1-monorepo-scaffold` merged to `main`. All checks pass (see decision log for the
+MinIO→Garage swap). Starting sub-phase 1.2 next.
+**Next up:** sub-phase 1.2 — Backend skeleton (settings, logging, error handler, SQLAlchemy
+session, Alembic, real `/health`).
