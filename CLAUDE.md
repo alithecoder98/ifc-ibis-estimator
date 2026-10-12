@@ -68,12 +68,10 @@ Goal: automate most of that mapping while keeping a human in control of anything
 /docs         planning docs, prompts, runbooks, guides (this plan lives here)
 ```
 
-## Core data model (draft — confirm before Phase 1.3 locks it into migrations)
+## Core data model (implemented as of sub-phase 1.3 — `apps/api/app/db/models/`)
 
-Derived from the table list and field hints scattered through
-[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) and
-[docs/PROMPTS.md](docs/PROMPTS.md). Flag anything wrong here before 1.3 — once the first
-migration lands, changes cost a follow-up migration instead of an edit to this file.
+Matches the first real Alembic migration (`08797541e51b_core_schema.py`). Changing
+anything below now means a follow-up migration, not just an edit to this file.
 
 | Table | Key fields |
 |---|---|
@@ -143,8 +141,8 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 ## Current status
 
 **Phase:** 1 — Foundation, in progress.
-**Last session:** 2026-10-13 — completed sub-phases 1.1 (monorepo scaffold) and 1.2
-(backend skeleton: settings, structured logging, uniform error handler, SQLAlchemy 2 +
-Alembic, real `/health`). Both branches merged to `main`, all checks green.
-**Next up:** sub-phase 1.3 — Database schema (all 12 tables from the Core data model
-draft above, first real Alembic migration).
+**Last session:** 2026-10-13 — completed sub-phases 1.1 (monorepo scaffold), 1.2 (backend
+skeleton) and 1.3 (database schema: all 12 tables, migration verified up/down). All
+branches merged to `main`, all checks green. The Core data model draft above is now the
+actual schema — treat it as implemented, not draft.
+**Next up:** sub-phase 1.4 — Worker and jobs (RQ worker, job progress helpers, `GET /jobs/{id}`).
