@@ -1,13 +1,17 @@
-"""FastAPI application entrypoint.
-
-Kept intentionally minimal for sub-phase 1.1 (monorepo scaffold). Settings,
-structured logging, the global error handler and the real /health check
-(DB + Redis) are added in sub-phase 1.2 — see docs/IMPLEMENTATION_PLAN.md.
-"""
+"""FastAPI application entrypoint."""
 
 from fastapi import FastAPI
 
+from app.core.errors import register_error_handlers
+from app.core.logging import configure_logging
+from app.routers.health import router as health_router
+
+configure_logging()
+
 app = FastAPI(title="IFC-to-IBIS Estimator API")
+
+register_error_handlers(app)
+app.include_router(health_router)
 
 
 @app.get("/")

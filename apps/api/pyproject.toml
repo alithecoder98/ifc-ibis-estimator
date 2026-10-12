@@ -42,6 +42,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# B008: FastAPI's `Depends(...)` as a default argument is the idiomatic DI pattern,
+# not the mutable-default-argument bug this rule is meant to catch.
+ignore = ["B008"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
