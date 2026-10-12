@@ -54,9 +54,14 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       rq.worker.SimpleWorker` there (documented in README). Real run: queued → running →
       done, progress 0→100, visible via `GET /jobs/{id}`. Tests use fakeredis + RQ sync
       mode so CI/Windows don't need a real worker process. 10/10 pytest, ruff/black clean.
-- [ ] **1.5 Auth + roles** — login/logout, JWT (httpOnly cookie), roles admin/estimator/viewer,
+- [x] **1.5 Auth + roles** — login/logout, JWT (httpOnly cookie), roles admin/estimator/viewer,
       permission dependency, seed admin user.
       Done when: role tests pass (viewer cannot upload, estimator cannot edit code list).
+      ✅ 2026-10-13 — login/logout/me working against real app+DB; `require_role` verified
+      with admin/estimator/viewer users against an isolated protected route (no real
+      admin-only business route exists yet — upload/code-list endpoints come in Phase 2/3
+      and will use the same dependency). `app.cli seed-admin` creates/promotes an admin,
+      verified manually end to end. 15/15 pytest, ruff/black clean.
 - [ ] **1.6 Frontend skeleton** — Next.js app shell, login page, protected layout, navigation,
       typed API client generated from OpenAPI, React Query provider.
       Done when: login → empty projects page works against local API.

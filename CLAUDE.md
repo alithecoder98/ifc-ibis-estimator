@@ -141,10 +141,9 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 ## Current status
 
 **Phase:** 1 — Foundation, in progress.
-**Last session:** 2026-10-13 — completed sub-phases 1.1–1.4: monorepo scaffold, backend
-skeleton, database schema (all 12 tables), worker + jobs. All branches merged to `main`,
-all checks green. The Core data model above is implemented, not draft. Known Windows
-quirk: `rq worker` needs `--worker-class rq.worker.SimpleWorker` (no `os.fork()` on
-Windows) — in README.
-**Next up:** sub-phase 1.5 — Auth and roles (login/logout/me, argon2, JWT httpOnly
-cookie, admin/estimator/viewer roles, seed admin command).
+**Last session:** 2026-10-13 — completed sub-phases 1.1–1.5: monorepo scaffold, backend
+skeleton, database schema (all 12 tables), worker + jobs, auth + roles. All branches
+merged to `main`, all checks green. Known Windows quirk: `rq worker` needs
+`--worker-class rq.worker.SimpleWorker` (no `os.fork()` on Windows) — in README.
+**Next up:** sub-phase 1.6 — Frontend skeleton (login page, protected layout, typed API
+client from the OpenAPI schema, React Query, empty Projects page).
