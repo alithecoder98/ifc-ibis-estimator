@@ -34,6 +34,8 @@ docker compose up -d
 cd apps/api
 cp .env.example .env
 uv sync
+uv run alembic upgrade head
+uv run python -m app.cli seed-admin --email you@example.com --password <password>
 uv run uvicorn app.main:app --reload --port 8000
 
 # 3. Worker (separate terminal) — processes background jobs (IFC extraction, etc.)

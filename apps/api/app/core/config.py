@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     s3_bucket: str = "ifc-uploads"
     s3_region: str = "garage"
 
-    jwt_secret: str = "change-me-in-every-environment"
+    jwt_secret: str = "change-me-in-every-environment-min-32-bytes"
     jwt_expires_minutes: int = 60
 
     llm_api_key: str = ""
