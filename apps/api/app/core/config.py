@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     )
 
     environment: str = "development"
+    # The frontend's origin(s) allowed to call this API with credentials (cookies).
+    # "*" doesn't work with allow_credentials=True, so this must be an explicit list.
+    cors_origins: list[str] = ["http://localhost:3000"]
 
     database_url: str = (
         "postgresql+psycopg://ifc_ibis:ifc_ibis_dev@localhost:5432/ifc_ibis"
