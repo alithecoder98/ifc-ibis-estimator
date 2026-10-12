@@ -9,6 +9,8 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+import pgvector.sqlalchemy  # noqa: F401 — autogenerate's Vector columns need this import
+#   but alembic doesn't detect it automatically; keep it here so every migration has it.
 ${imports if imports else ""}
 
 # revision identifiers, used by Alembic.

@@ -1,4 +1,4 @@
-"""Declarative base all ORM models inherit from (see Phase 1.3 for the actual models)."""
+"""Declarative base all ORM models inherit from."""
 
 from sqlalchemy.orm import DeclarativeBase
 
