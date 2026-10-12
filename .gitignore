@@ -1,0 +1,22 @@
+# Client-provided reference files and generated reports — never committed.
+/data/*
+!/data/README.md
+
+# Local env files (every app has its own; .env.example is the template that IS committed)
+.env
+.env.*
+!.env.example
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Garage (local S3-compatible storage) — generated secrets + data volumes
+/garage/garage.toml
+/garage/data/
+/garage/meta/
