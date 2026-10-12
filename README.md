@@ -36,7 +36,13 @@ cp .env.example .env
 uv sync
 uv run uvicorn app.main:app --reload --port 8000
 
-# 3. Frontend (separate terminal)
+# 3. Worker (separate terminal) — processes background jobs (IFC extraction, etc.)
+cd apps/api
+uv run rq worker --worker-class rq.worker.SimpleWorker
+# ^ RQ's default worker uses os.fork(), unavailable on Windows — use SimpleWorker there.
+# On Linux/macOS/CI, plain `uv run rq worker` works too.
+
+# 4. Frontend (separate terminal)
 cd apps/web
 cp .env.example .env.local
 pnpm install
