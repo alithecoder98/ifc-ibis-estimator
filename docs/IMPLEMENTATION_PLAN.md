@@ -62,9 +62,16 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       admin-only business route exists yet — upload/code-list endpoints come in Phase 2/3
       and will use the same dependency). `app.cli seed-admin` creates/promotes an admin,
       verified manually end to end. 15/15 pytest, ruff/black clean.
-- [ ] **1.6 Frontend skeleton** — Next.js app shell, login page, protected layout, navigation,
+- [x] **1.6 Frontend skeleton** — Next.js app shell, login page, protected layout, navigation,
       typed API client generated from OpenAPI, React Query provider.
       Done when: login → empty projects page works against local API.
+      ✅ 2026-10-13 — verified with a real browser (one-off Playwright script, not
+      committed): / → /login → sign in → /projects renders, Admin link shows for an
+      admin role, logout → /login, protected pages bounce back to /login when logged
+      out. Had to add CORS to the backend (credentialed cookie across localhost:3000 ↔
+      :8000) and use `render` instead of `asChild` on DropdownMenuTrigger — this shadcn
+      install is on Base UI, not Radix. eslint/prettier/build clean on web; 15/15 pytest,
+      ruff/black clean on api.
 - [ ] **1.7 CI + staging** — GitHub Actions: lint, test, build images; deploy to staging.
       Done when: a merge to main updates staging.
 

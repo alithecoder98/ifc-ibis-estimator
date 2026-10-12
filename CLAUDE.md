@@ -141,9 +141,12 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 ## Current status
 
 **Phase:** 1 — Foundation, in progress.
-**Last session:** 2026-10-13 — completed sub-phases 1.1–1.5: monorepo scaffold, backend
-skeleton, database schema (all 12 tables), worker + jobs, auth + roles. All branches
-merged to `main`, all checks green. Known Windows quirk: `rq worker` needs
-`--worker-class rq.worker.SimpleWorker` (no `os.fork()` on Windows) — in README.
-**Next up:** sub-phase 1.6 — Frontend skeleton (login page, protected layout, typed API
-client from the OpenAPI schema, React Query, empty Projects page).
+**Last session:** 2026-10-13 — completed sub-phases 1.1–1.6: monorepo scaffold, backend
+skeleton, database schema (all 12 tables), worker + jobs, auth + roles, frontend
+skeleton. All branches merged to `main`, all checks green. Known Windows quirk: `rq
+worker` needs `--worker-class rq.worker.SimpleWorker` (no `os.fork()` on Windows) — in
+README. This shadcn/ui install is on Base UI primitives, not Radix (`render` prop, not
+`asChild`) — relevant for every future shadcn component added.
+**Next up:** sub-phase 1.7 — CI and staging (GitHub Actions lint/test/build; Dockerfiles
+for api/worker/web; the actual deploy-to-staging step needs a server/provider target
+from you first).
