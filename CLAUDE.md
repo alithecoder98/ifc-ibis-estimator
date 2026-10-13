@@ -169,6 +169,11 @@ $_.CommandLine -match 'rq' }` (filter by `Name`, not just `CommandLine`, or the
 PowerShell query can match its own command text), then `taskkill /F /T /PID <pid>` on
 the root of its process tree, then re-run the same query and confirm it's empty —
 don't trust a single kill attempt.
+**Running `pnpm build` while `pnpm dev` is active against the same `apps/web/.next`
+directory corrupts the dev server every time** (`ENOENT ... _buildManifest.js.tmp...`,
+then 500s on every route) — bitten twice now during routine audits. Either stop the
+dev server first, or expect to `rm -rf apps/web/.next` and restart it after a `pnpm
+build` check.
 **Test cleanup helpers must track every FK that points at what they're deleting** —
 each new table (quantities → elements, in 2.3) breaks any existing test cleanup that
 doesn't know about it, causing silent row leaks that surface later as confusing
