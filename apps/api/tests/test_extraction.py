@@ -9,7 +9,7 @@ from pathlib import Path
 
 import ifcopenshell
 
-from app.db.models import Element, IfcFile, Job, Project, User
+from app.db.models import Element, IfcFile, Job, Project, Quantity, User
 from app.db.session import SessionLocal
 from app.ifc.extract import extract_elements
 from app.storage import upload_fileobj
@@ -98,6 +98,14 @@ def _cleanup(project_id: int, user_id: int) -> None:
         f.id for f in db.query(IfcFile).filter(IfcFile.project_id == project_id)
     ]
     if ifc_file_ids:
+        element_ids = [
+            e.id
+            for e in db.query(Element).filter(Element.ifc_file_id.in_(ifc_file_ids))
+        ]
+        if element_ids:
+            db.query(Quantity).filter(Quantity.element_id.in_(element_ids)).delete(
+                synchronize_session=False
+            )
         db.query(Element).filter(Element.ifc_file_id.in_(ifc_file_ids)).delete(
             synchronize_session=False
         )

@@ -1,9 +1,9 @@
 """IFC processing job, triggered after a successful upload.
 
-Downloads the file from storage, extracts building elements (Phase 2.2), and inserts
-them into the `elements` table in batches. Geometry is never touched here — keeps this
-fast and low-memory regardless of file size; Qto-based quantities are 2.3's job,
-geometry-computed quantities are 2.4's, profile_text/group_hash are 2.5's.
+Downloads the file from storage, extracts building elements (Phase 2.2) and their Qto
+quantities (Phase 2.3), and inserts both into the DB in batches. Geometry is never
+touched here — keeps this fast and low-memory regardless of file size;
+geometry-computed fallback quantities are 2.4's job, profile_text/group_hash are 2.5's.
 """
 
 import tempfile
@@ -11,9 +11,10 @@ from pathlib import Path
 
 import ifcopenshell
 
-from app.db.models import Element, IfcFile, Job
+from app.db.models import Element, IfcFile, Job, Quantity
 from app.db.session import SessionLocal
-from app.ifc.extract import extract_elements
+from app.ifc.extract import build_element_data, iter_supported_elements
+from app.ifc.quantities import extract_quantities
 from app.storage import download_to_path
 
 BATCH_SIZE = 500
@@ -35,12 +36,24 @@ def process_ifc_file(job_id: int, ifc_file_id: int) -> None:
             tmp_path = Path(tmp_dir) / "input.ifc"
             download_to_path(ifc_file.storage_key, tmp_path)
             opened = ifcopenshell.open(str(tmp_path))
-            elements = list(extract_elements(opened))
 
-        total = len(elements)
+            raw_elements = list(iter_supported_elements(opened))
+            elements_data = [build_element_data(e) for e in raw_elements]
+            quantities_by_global_id = {
+                e.GlobalId: extract_quantities(opened, e) for e in raw_elements
+            }
+
+        total = len(elements_data)
         for start in range(0, total, BATCH_SIZE):
-            batch = elements[start : start + BATCH_SIZE]
-            db.add_all(Element(ifc_file_id=ifc_file_id, **data) for data in batch)
+            batch = elements_data[start : start + BATCH_SIZE]
+            orm_elements = [Element(ifc_file_id=ifc_file_id, **data) for data in batch]
+            db.add_all(orm_elements)
+            db.flush()  # assigns .id to each, needed for the Quantity rows below
+
+            for orm_element, data in zip(orm_elements, batch, strict=True):
+                quantities = quantities_by_global_id.get(data["global_id"], [])
+                db.add_all(Quantity(element_id=orm_element.id, **q) for q in quantities)
+
             db.flush()
             job.progress = (
                 int(min(start + len(batch), total) / total * 100) if total else 100

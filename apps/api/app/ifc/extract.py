@@ -76,9 +76,11 @@ def _get_is_external_load_bearing(psets: dict) -> tuple[bool | None, bool | None
     return is_external, load_bearing
 
 
-def extract_elements(ifc_file: ifcopenshell.file):
-    """Yields one dict per supported element, deduplicated by entity id (by_type()
-    already includes subtypes, e.g. IfcWallStandardCase comes back from "IfcWall").
+def iter_supported_elements(ifc_file: ifcopenshell.file):
+    """Yields raw entities for every supported class, deduplicated by entity id
+    (by_type() already includes subtypes, e.g. IfcWallStandardCase comes back from
+    "IfcWall"). Shared by extract_elements() below and app/ifc/quantities.py's caller
+    (the worker) so both walk the file once instead of twice.
     """
     seen_ids: set[int] = set()
 
@@ -87,19 +89,32 @@ def extract_elements(ifc_file: ifcopenshell.file):
             if element.id() in seen_ids:
                 continue
             seen_ids.add(element.id())
+            yield element
 
-            psets = ue.get_psets(element)
-            is_external, load_bearing = _get_is_external_load_bearing(psets)
 
-            yield {
-                "global_id": element.GlobalId,
-                "ifc_class": element.is_a(),
-                "predefined_type": getattr(element, "PredefinedType", None),
-                "name": element.Name,
-                "object_type": getattr(element, "ObjectType", None),
-                "storey": _get_storey_name(element),
-                "is_external": is_external,
-                "load_bearing": load_bearing,
-                "materials": _get_materials(element),
-                "psets": psets or None,
-            }
+def build_element_data(element) -> dict:
+    """Builds the elements-table dict for one raw entity."""
+    psets = ue.get_psets(element)
+    is_external, load_bearing = _get_is_external_load_bearing(psets)
+
+    return {
+        "global_id": element.GlobalId,
+        "ifc_class": element.is_a(),
+        "predefined_type": getattr(element, "PredefinedType", None),
+        "name": element.Name,
+        "object_type": getattr(element, "ObjectType", None),
+        "storey": _get_storey_name(element),
+        "is_external": is_external,
+        "load_bearing": load_bearing,
+        "materials": _get_materials(element),
+        "psets": psets or None,
+    }
+
+
+def extract_elements(ifc_file: ifcopenshell.file):
+    """Yields one dict per supported element — see build_element_data()/
+    iter_supported_elements() for the pieces, kept separate so the worker can reuse
+    the raw entity (e.g. to also look up its quantities) without re-walking the file.
+    """
+    for element in iter_supported_elements(ifc_file):
+        yield build_element_data(element)
