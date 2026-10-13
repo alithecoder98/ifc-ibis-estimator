@@ -129,8 +129,16 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       applies when Qto is completely absent for an element — never overrides real Qto
       data (verified live). Verified via pytest (41/41) and live through the real
       pipeline. ruff/black clean.
-- [ ] **2.5 Element profiles + grouping** — `profile_text` per element; group hash for identical types.
+- [x] **2.5 Element profiles + grouping** — `profile_text` per element; group hash for identical types.
       Done when: profiles deterministic (snapshot tests); grouping reduces element count in report.
+      ✅ 2026-10-13 — exact-string snapshot test on the fixture wall, plus an explicit
+      twice-called-same-input determinism check. Grouping verified on real data: 4
+      walls in real_sample.ifc → 2 unique group hashes (3 share material/class/type, 1
+      doesn't), confirmed via pytest and live through the real pipeline. Found a real
+      bug while building this: `ifcopenshell.util.element.get_psets()` always injects
+      an `"id"` key into every pset dict (the pset's own STEP id) — without excluding
+      it, profile_text would show `Properties: id=24` as if it were a real IFC
+      property. 49/49 pytest, ruff/black clean.
 - [ ] **2.6 Fragments for viewer** — convert IFC to That Open fragments in worker (Node script or
       service), store file, map fragment IDs ↔ GlobalIds.
       Done when: fragments file downloadable via `GET /files/{id}/model`.

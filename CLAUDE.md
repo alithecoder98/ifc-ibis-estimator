@@ -147,7 +147,7 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 
 ## Current status
 
-**Phase:** 2 — IFC processing engine, in progress (2.1, 2.2, 2.3, 2.4 done).
+**Phase:** 2 — IFC processing engine, in progress (2.1–2.5 done).
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -180,26 +180,26 @@ grep existing `_cleanup()` helpers for the table it references.
 types, plus a real public-domain sample with authoring-tool messiness). Only **2.7**
 (extraction comparison report against `data/ground_truth.csv`) and later QA/export
 phases are actually blocked on client data — see "Still open" below.
-**Last session:** 2026-10-13 — sub-phase 2.4 (geometry fallback) done:
-`app/ifc/geometry.py` computes volume_net/volume_gross (via ifcopenshell's own
-opening-subtraction boolean behavior, not manual face analysis), area_gross (total
-mesh surface — explicitly not the same concept as Qto's side-area, documented not
-pretended), and length (bounding-box extent) from 3D geometry, used by the worker only
-when an element has zero Qto quantities — never overrides real Qto data. 0.00%
-deviation from real Qto on all 7 comparable real elements, exact match on 2
-purpose-built synthetic cases (including a hand-verified wall+opening). Verified via
-pytest (41/41) and live through the real pipeline.
-**Scope decision made explicitly, not guessed:** "per-layer quantities for
-composites" (from the plan) isn't implemented — the `quantities` table has no concept
-of a material layer; deferred to Phase 6.2 (composite split review), which is where
-the plan actually uses it.
-Also recently: sub-phase 2.3 (quantities from Qto); sub-phase 2.2 (element
-extraction); the `AUTH_DISABLED` dev-mode login bypass (`/` redirects to `/projects`
+**Last session:** 2026-10-13 — sub-phase 2.5 (element profiles + grouping) done:
+`app/ifc/profile.py`'s `build_profile_text()` (deterministic summary — the
+classification pipeline's input/embedding source for Phase 3) and
+`compute_group_hash()` (SHA256 over only type-defining fields — class, predefined
+type, materials, external, load-bearing — deliberately excluding global_id/name/
+storey/quantities, so same-type elements group together regardless of location/size).
+Grouping verified on real data: real_sample.ifc's 4 walls → 2 unique groups. Found a
+real bug: `ifcopenshell.util.element.get_psets()` always injects an `"id"` key (the
+pset's own STEP id) into every pset dict — without excluding it, profile_text showed
+`Properties: id=24` as if it were a real IFC property. Verified via pytest (49/49) and
+live through the real pipeline.
+**Scope decision made explicitly in 2.4, not guessed:** "per-layer quantities for
+composites" isn't implemented — the `quantities` table has no concept of a material
+layer; deferred to Phase 6.2 (composite split review), which is where the plan
+actually uses it.
+Also recently: sub-phases 2.2–2.4 (element extraction, Qto quantities, geometry
+fallback); the `AUTH_DISABLED` dev-mode login bypass (`/` redirects to `/projects`
 instead of `/login` as a side effect).
 **Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB) —
-revisit once one is available, relevant to 2.2/2.3/2.4's "no memory blow-up" bar (2.4
-especially, since geometry triangulation is the first actually CPU/memory-heavy step
-in the pipeline).
-**Next up:** sub-phase 2.5 — Element profiles + grouping (`profile_text` per element,
-`group_hash` so identical element types are classified once — feeds Phase 3's
-classification pipeline).
+revisit once one is available, relevant to 2.2–2.4's "no memory blow-up" bar.
+**Next up:** sub-phase 2.6 — Fragments for the 3D viewer (convert IFC to That Open
+fragments, map fragment IDs ↔ GlobalIds) — this is the first sub-phase touching the
+frontend/Node side since Phase 1.6, not pure backend like 2.1–2.5.
