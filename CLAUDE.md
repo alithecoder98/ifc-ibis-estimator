@@ -164,7 +164,8 @@ njderidder's reply. No new client commitment has arrived — this is a deliberat
 to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
 Phase P and the decision log above for the full history.
 
-**Phase:** 2 — IFC processing engine, 2.1–2.6 done, continuing to 2.7.
+**Phase:** 2 — IFC processing engine, **all of 2.1–2.7 done**. Phase 2 complete; next
+is Phase 3 (AI classification engine).
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -242,8 +243,22 @@ worker pipeline (not a standalone service, not browser-side conversion — see
 `ifc_files.fragments_storage_key`/`fragment_id_map`. New endpoint
 `GET /projects/{project_id}/files/{file_id}/model`. **New real dependency:** Node.js in
 `Dockerfile.worker` (API image untouched — it only enqueues jobs) and
-`actions/setup-node` in CI. 68/68 pytest, run twice, no leaks.
+`actions/setup-node` in CI.
+**Also this session:** 2.7 (extraction comparison report) done, same session as 2.6 —
+**Phase 2 is now fully complete.** `app/ifc/extraction_report.py`
+(`GroundTruthRow`/`load_ground_truth`/`compare_extraction`/`render_markdown_report`) +
+`scripts/compare_extraction.py`. Ground-truth CSV format is PROMPTS.md's 0.3 spec
+(`file, global_id, expected_ibis_code, expected_internal_element, expected_quantity,
+unit, notes`) — 0.3's own loader was never built (Phase 0 still blocked on client
+data), so this ships its own minimal validated loader rather than wait on a separate
+phase. **Self-tested only, same caveat as P.4** — njderidder's reference calculations
+still haven't arrived, so this proves the comparison logic against our own fixture,
+not a real coverage number. **A real bug caught by the live smoke test, not pytest:**
+`csv.DictReader` gives `""` for empty cells; Pydantic's `float | None` fields don't
+coerce that to `None` and raise instead — fixed in `load_ground_truth()` before merge.
+72/72 pytest, run twice, no leaks.
 **Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB).
-**Next up:** 2.7 — extraction comparison report (`scripts/compare_extraction.py` vs
-`data/ground_truth.csv`). Blocked on the same client data as Phase 0 (see "Still open"
-above) — flag this when picked up rather than guessing at a ground-truth format.
+**Next up:** Phase 3 — AI classification engine (3.1 code list import + embeddings).
+Needs a decision on the `Embedder`/`LLMClient` provider first (see "Still open")
+before 3.1/3.4 can be built for real — flag that before coding rather than guessing a
+provider.

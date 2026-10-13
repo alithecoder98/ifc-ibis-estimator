@@ -242,9 +242,26 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       Node script produces — lookups always start from an element's GlobalId). New
       dependency: Node.js in `Dockerfile.worker` only (the API image just enqueues the
       job, never runs it) + `actions/setup-node` in CI's `api` job.
-- [ ] **2.7 Extraction report** — `scripts/compare_extraction.py` vs ground truth: element coverage,
+- [x] **2.7 Extraction report** — `scripts/compare_extraction.py` vs ground truth: element coverage,
       quantity deviation per code.
       Done when: report generated for all reference projects.
+      ✅ 2026-10-13 — `app/ifc/extraction_report.py` (`GroundTruthRow` Pydantic model +
+      `load_ground_truth()` + `compare_extraction()` + `render_markdown_report()`) and
+      the thin CLI `scripts/compare_extraction.py`. Ground-truth CSV format follows
+      PROMPTS.md's 0.3 spec (`file, global_id, expected_ibis_code,
+      expected_internal_element, expected_quantity, unit, notes`) — 0.3's own loader
+      was never built (Phase 0 blocked on client data), so this ships its own minimal
+      validated loader rather than wait on a separate phase. For a missing element,
+      the ground-truth format has no `ifc_class` column, so missing-by-class comes from
+      opening the raw IFC by GlobalId, not a guess. **Self-tested only** — same caveat
+      as P.4: njderidder's real reference calculations still haven't arrived, so
+      `tests/test_extraction_report.py` proves the coverage/missing/deviation logic
+      against our own fixture (one matched element, one missing-but-present-in-IFC,
+      one missing-and-not-in-IFC, one real quantity deviation), not a real coverage
+      number. A live run against a real uploaded project caught a real bug before
+      merge: `csv.DictReader` gives `""` for empty cells, which Pydantic's `float |
+      None` fields don't coerce to `None` — fixed by normalising empty strings in
+      `load_ground_truth()`. 72/72 pytest, run twice, no leaks.
 
 ## Phase 3 — AI classification engine (weeks 4–6)
 - [ ] **3.1 Code list import API + embeddings** — admin upload of codes (CSV/XLSX), versioning,
