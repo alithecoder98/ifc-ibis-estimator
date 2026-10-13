@@ -3,8 +3,8 @@ export default function ProjectsPage() {
     <div>
       <h1 className="mb-4 text-xl font-semibold">Projects</h1>
       <p className="text-muted-foreground">
-        No projects yet. Project creation and the IFC upload flow arrive in
-        Phase 2.
+        No projects yet. The project/upload API is live, but this page
+        doesn&apos;t call it yet — that UI wiring arrives in Phase 4.
       </p>
     </div>
   );
