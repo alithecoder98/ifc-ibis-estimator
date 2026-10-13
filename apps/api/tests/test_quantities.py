@@ -15,6 +15,7 @@ from app.db.session import SessionLocal
 from app.ifc.quantities import extract_quantities
 from app.storage import upload_fileobj
 from app.workers.extraction import process_ifc_file
+from tests.conftest import cleanup_project_cascade
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -96,34 +97,7 @@ def _create_user_and_project() -> tuple[User, Project]:
     return user, project
 
 
-def _cleanup(project_id: int, user_id: int) -> None:
-    db = SessionLocal()
-    ifc_file_ids = [
-        f.id for f in db.query(IfcFile).filter(IfcFile.project_id == project_id)
-    ]
-    if ifc_file_ids:
-        element_ids = [
-            e.id
-            for e in db.query(Element).filter(Element.ifc_file_id.in_(ifc_file_ids))
-        ]
-        if element_ids:
-            db.query(Quantity).filter(Quantity.element_id.in_(element_ids)).delete(
-                synchronize_session=False
-            )
-        db.query(Element).filter(Element.ifc_file_id.in_(ifc_file_ids)).delete(
-            synchronize_session=False
-        )
-        db.query(Job).filter(Job.ifc_file_id.in_(ifc_file_ids)).delete(
-            synchronize_session=False
-        )
-        db.query(IfcFile).filter(IfcFile.id.in_(ifc_file_ids)).delete(
-            synchronize_session=False
-        )
-    db.query(Job).filter(Job.project_id == project_id).delete(synchronize_session=False)
-    db.query(Project).filter(Project.id == project_id).delete()
-    db.query(User).filter(User.id == user_id).delete()
-    db.commit()
-    db.close()
+_cleanup = cleanup_project_cascade
 
 
 def test_process_ifc_file_inserts_quantities_linked_to_elements() -> None:

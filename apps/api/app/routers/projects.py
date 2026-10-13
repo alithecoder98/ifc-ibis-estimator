@@ -12,10 +12,12 @@ from pathlib import Path
 
 import ifcopenshell
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.ai.export import build_export_csv
 from app.core.deps import require_role
-from app.db.models import IfcFile, Project, User
+from app.db.models import Classification, Element, IfcFile, Project, Quantity, User
 from app.db.session import get_db
 from app.schemas import IfcFileOut, ProjectCreate, ProjectOut
 from app.storage import upload_fileobj
@@ -133,3 +135,50 @@ def upload_ifc_file(
         return ifc_file
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+@router.get("/{project_id}/export")
+def export_project_csv(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator", "viewer")),
+) -> Response:
+    """Phase P.3 — the minimal results output: every element in the project, its
+    quantities, and its jev classification (if any), as a downloadable CSV.
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
+
+    ifc_file_ids = [
+        f.id for f in db.query(IfcFile).filter(IfcFile.project_id == project_id)
+    ]
+    elements = (
+        db.query(Element)
+        .filter(Element.ifc_file_id.in_(ifc_file_ids))
+        .order_by(Element.id)
+        .all()
+        if ifc_file_ids
+        else []
+    )
+
+    rows = []
+    for element in elements:
+        quantities = db.query(Quantity).filter(Quantity.element_id == element.id).all()
+        classification = (
+            db.query(Classification)
+            .filter(Classification.element_id == element.id)
+            .order_by(Classification.created_at.desc())
+            .first()
+        )
+        rows.append((element, quantities, classification))
+
+    csv_text = build_export_csv(rows)
+    filename = f"project-{project_id}-export.csv"
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

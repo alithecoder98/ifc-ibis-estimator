@@ -5,7 +5,8 @@ quantities, and inserts both into the DB in batches. Quantities come from Qto se
 (Phase 2.3) where present; geometry (Phase 2.4, ifcopenshell.geom — the only step that
 touches geometry, so it's the only one with any real memory/CPU cost) fills in only
 for elements with no Qto data at all, never overriding real Qto data. Each element also
-gets a profile_text and group_hash (Phase 2.5) once its quantities are known.
+gets a profile_text and group_hash (Phase 2.5) once its quantities are known, and
+finally a jev-based classification (Phase P.2), one jev call per group.
 """
 
 import tempfile
@@ -13,6 +14,7 @@ from pathlib import Path
 
 import ifcopenshell
 
+from app.ai.classify import classify_elements
 from app.db.models import Element, IfcFile, Job, Quantity
 from app.db.session import SessionLocal
 from app.ifc.extract import build_element_data, iter_supported_elements
@@ -56,21 +58,27 @@ def process_ifc_file(job_id: int, ifc_file_id: int) -> None:
                 data["group_hash"] = compute_group_hash(data)
 
         total = len(elements_data)
+        all_orm_elements: list[Element] = []
         for start in range(0, total, BATCH_SIZE):
             batch = elements_data[start : start + BATCH_SIZE]
             orm_elements = [Element(ifc_file_id=ifc_file_id, **data) for data in batch]
             db.add_all(orm_elements)
             db.flush()  # assigns .id to each, needed for the Quantity rows below
+            all_orm_elements.extend(orm_elements)
 
             for orm_element, data in zip(orm_elements, batch, strict=True):
                 quantities = quantities_by_global_id.get(data["global_id"], [])
                 db.add_all(Quantity(element_id=orm_element.id, **q) for q in quantities)
 
             db.flush()
+            # Extraction is 90% of the job; classification is the last 10%.
             job.progress = (
-                int(min(start + len(batch), total) / total * 100) if total else 100
+                int(min(start + len(batch), total) / total * 90) if total else 90
             )
             db.commit()
+
+        classify_elements(db, all_orm_elements)
+        db.commit()
 
         ifc_file.status = "extracted"
         job.status = "done"
