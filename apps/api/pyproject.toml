@@ -10,8 +10,10 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.20.0",
     "argon2-cffi>=25.1.0",
+    "boto3>=1.43.112",
     "email-validator>=2.3.0",
     "fastapi>=0.143.0",
+    "ifcopenshell>=0.9.0",
     "pgvector>=0.5.1",
     "psycopg[binary]>=3.3.6",
     "pydantic-settings>=2.15.0",

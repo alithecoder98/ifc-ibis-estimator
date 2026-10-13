@@ -30,9 +30,19 @@ element list and IBIS cost codes, with a human-in-the-loop review step. See
 cp .env.example .env
 docker compose up -d
 
+# 1b. One-time: give Garage a layout and an API key (MSYS_NO_PATHCONV=1 only needed on
+# Windows Git Bash, which otherwise mangles the /garage path). Skip if already done.
+MSYS_NO_PATHCONV=1 docker compose exec garage /garage status   # note the node ID
+MSYS_NO_PATHCONV=1 docker compose exec garage /garage layout assign <node-id> -z dc1 -c 1G
+MSYS_NO_PATHCONV=1 docker compose exec garage /garage layout apply --version 1
+MSYS_NO_PATHCONV=1 docker compose exec garage /garage bucket create ifc-uploads
+MSYS_NO_PATHCONV=1 docker compose exec garage /garage key create ifc-ibis-api-key
+MSYS_NO_PATHCONV=1 docker compose exec garage /garage bucket allow --read --write ifc-uploads --key ifc-ibis-api-key
+# ^ copy the printed Key ID / Secret key into apps/api/.env as S3_ACCESS_KEY/S3_SECRET_KEY
+
 # 2. Backend
 cd apps/api
-cp .env.example .env
+cp .env.example .env   # then fill in S3_ACCESS_KEY/S3_SECRET_KEY from step 1b
 uv sync
 uv run alembic upgrade head
 uv run python -m app.cli seed-admin --email you@example.com --password <password>
