@@ -201,29 +201,26 @@ grep existing `_cleanup()` helpers for the table it references.
 types, plus a real public-domain sample with authoring-tool messiness). Only **2.7**
 (extraction comparison report against `data/ground_truth.csv`) and later QA/export
 phases are actually blocked on client data — see "Still open" below.
-**Last session:** 2026-10-13 — sub-phase 2.5 (element profiles + grouping) done:
-`app/ifc/profile.py`'s `build_profile_text()` (deterministic summary — the
-classification pipeline's input/embedding source for Phase 3) and
-`compute_group_hash()` (SHA256 over only type-defining fields — class, predefined
-type, materials, external, load-bearing — deliberately excluding global_id/name/
-storey/quantities, so same-type elements group together regardless of location/size).
-Grouping verified on real data: real_sample.ifc's 4 walls → 2 unique groups. Found a
-real bug: `ifcopenshell.util.element.get_psets()` always injects an `"id"` key (the
-pset's own STEP id) into every pset dict — without excluding it, profile_text showed
-`Properties: id=24` as if it were a real IFC property. Verified via pytest (49/49) and
-live through the real pipeline.
-**Scope decision made explicitly in 2.4, not guessed:** "per-layer quantities for
-composites" isn't implemented — the `quantities` table has no concept of a material
-layer; deferred to Phase 6.2 (composite split review), which is where the plan
-actually uses it.
-Also recently: sub-phases 2.2–2.4 (element extraction, Qto quantities, geometry
-fallback); the `AUTH_DISABLED` dev-mode login bypass (`/` redirects to `/projects`
-instead of `/login` as a side effect).
-**Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB) —
-revisit once one is available, relevant to 2.2–2.4's "no memory blow-up" bar.
-**Next up:** Phase P.1/P.2 — a `JevClient` stub (`app/ai/jev.py`) and a classification
-worker step that calls it once per `group_hash` (reusing 2.5's grouping to cut API
-calls) — both buildable now against a stub response, ready to swap in real jev
-credentials with no code change once njderidder provides them. **Not** sub-phase 2.6
-(3D viewer fragments) — that's explicitly deferred with the rest of Phases 3–9 until
-the client commits.
+**Last session:** 2026-10-13 — Phase P.1–P.3 (jev client, classification, minimal CSV
+export) done: `app/ai/jev.py` (`StubJevClient` until real credentials exist — the real
+`JevClient` deliberately raises rather than guessing at an undocumented API contract),
+`app/ai/classify.py` (one jev call per unique `group_hash`, one `Classification` row
+per element, routes everything to `needs_review` since stub confidence is always 0.0),
+`app/ai/export.py` + `GET /projects/{id}/export` (a downloadable CSV — chosen over
+Excel/a frontend page to stay inside the 1-2 day budget). All wired into the existing
+extraction pipeline as its final step. Verified via pytest (60/60) and live: a real
+upload of `real_sample.ifc` produced a real CSV with real quantities and an honest
+"jev not yet configured" reasoning per row — not fabricated data.
+**A real recurring bug, fixed properly this time:** the new `classifications` table
+broke 4 separate test files' local cleanup copies (same class of bug as 2.3/2.4).
+Instead of patching each again, extracted one shared `cleanup_project_cascade()` into
+`tests/conftest.py`, used by all 5 files now — the next new FK-bearing table updates
+one function, not N.
+Also recently: sub-phases 2.1–2.5 (full extraction pipeline); the `AUTH_DISABLED`
+dev-mode login bypass; the Phase P scope realignment itself (see decision log above).
+**Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB).
+**Blocked:** P.4 (accuracy comparison) needs the manually-verified reference
+calculations njderidder said he's gathering — not received yet.
+**Next up:** nothing buildable right now without new input. Either njderidder's real
+jev credentials (making P.1/P.2 fully real instead of stubbed) or his reference files
+(unblocking P.4) — whichever arrives first.

@@ -33,26 +33,38 @@ access), the 2 example IFC files, the internal IBIS code list, reference calcula
 2.2–2.5 — element extraction, Qto quantities, geometry fallback, profiling/grouping).
 This is exactly step 1 of his 4-step ask.
 
-- [ ] **P.1 jev client** — `app/ai/jev.py`: a `JevClient` wrapping jev's real API
+- [x] **P.1 jev client** — `app/ai/jev.py`: a `JevClient` wrapping jev's real API
       (same stubbed-until-credentials-exist pattern as other provider clients in this
       codebase). Given one element's `profile_text`, returns a suggested IBIS
       code + confidence/flag. Buildable now as a stub even without real jev access.
       Done when: unit-testable against a stub/fake response; ready to swap in real
       credentials with no code change once they arrive.
-- [ ] **P.2 Classification step** — worker step after profiling (2.5): calls jev
+      ✅ 2026-10-13 — `get_jev_client()` picks `StubJevClient` (confidence=0.0,
+      `is_stub=True`) or the real `JevClient` based on whether `JEV_API_URL`/
+      `JEV_API_KEY` are set. The real client deliberately raises `NotImplementedError`
+      rather than guessing at an API contract we don't have docs for.
+- [x] **P.2 Classification step** — worker step after profiling (2.5): calls jev
       **once per unique `group_hash`**, not per element — reuses 2.5's grouping
       specifically to cut jev API calls/cost, which matters since njderidder is
       paying for API usage out of pocket. Stores the result (reuse the existing
       `classifications` table, `source="jev"`).
       Done when: runs end-to-end against a stubbed jev response on both test
       fixtures; real jev swap-in requires no code change, only credentials.
-- [ ] **P.3 Minimal results output** — the simplest thing that shows classifications
+      ✅ 2026-10-13 — verified via pytest (jev called once for 2 of 3 elements sharing
+      a group) and live: real_sample.ifc's 13 elements → 13 Classification rows via
+      exactly as many jev calls as unique `group_hash`es, not 13 individual calls.
+- [x] **P.3 Minimal results output** — the simplest thing that shows classifications
       and flags uncertain matches. Default toward a script exporting to Excel/CSV
       (no frontend work, directly shareable) over a web page, unless a quick glance
       in the browser is specifically wanted — decide concretely when building this,
       not before.
       Done when: njderidder can open the output and see element → suggested code →
       confidence/flag, without needing to run any code himself.
+      ✅ 2026-10-13 — `GET /projects/{id}/export` downloads a CSV (chosen over Excel/a
+      frontend page — zero new dependencies, zero new pages, both of which would eat
+      disproportionately into the 1-2 day budget). Verified live: a real upload
+      produced a real downloadable CSV with real quantities and an honest "jev not yet
+      configured" reasoning column per row, not fabricated data.
 - [ ] **P.4 Accuracy comparison** — script comparing jev's suggested codes against the
       manually-verified reference calculations, once provided. Scoped down from
       2.7/3.8's full evaluation harness — just a % match and a list of mismatches,
