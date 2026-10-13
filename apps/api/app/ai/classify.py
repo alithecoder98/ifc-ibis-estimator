@@ -194,6 +194,8 @@ def classify_elements(
                         status=confidence.status,
                         source="llm",
                         agreement=agreement,
+                        prompt_tokens=llm_result.prompt_tokens,
+                        completion_tokens=llm_result.completion_tokens,
                     )
                 )
             if jev_result is not None:

@@ -60,6 +60,11 @@ class Classification(Base):
     # element, in that same run. Null for rule rows and single-engine runs - there's
     # nothing to agree or disagree with.
     agreement: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # Only set on source="llm" rows (Phase 3.8, for the evaluation harness's "cost
+    # per model" report) - null, not 0, for rule/jev rows: there's no token count
+    # that applies to them at all, which is a different thing from "cost zero."
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False
     )

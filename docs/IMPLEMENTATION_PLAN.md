@@ -459,9 +459,34 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       with the code under test. A dev worker left alive is now understood to be
       a correctness risk for the test suite, not just a staleness risk for manual
       verification - see CLAUDE.md's strengthened process-hygiene note.
-- [ ] **3.8 Evaluation harness** — `scripts/evaluate.py`: accuracy, auto-accept rate, missed errors,
+- [x] **3.8 Evaluation harness** — `scripts/evaluate.py`: accuracy, auto-accept rate, missed errors,
       cost per model, confusion by family; results saved with timestamp.
       Done when: report produced for all reference projects (input to week-6 gate).
+      ✅ 2026-10-13 — **Phase 3 (3.1–3.8) is now fully complete.** New migration
+      `10d703fe08b6` adds `classifications.prompt_tokens`/`completion_tokens`
+      (nullable, `None` for rule/jev rows — "not applicable" is a different thing
+      from "zero cost"), populated in `classify.py`'s llm branch — without this,
+      "cost per model" would have been fabricated rather than measured, since
+      `classify.py` already computed these values transiently but never
+      persisted them. `app/ai/evaluate.py`: `gather_evaluation_rows()` (latest
+      classification per element vs. ground truth, family via 3.3's
+      `guess_family()`), `evaluate()` → overall accuracy, auto-accept rate,
+      auto-accept precision, **unflagged error rate** (wrong *and*
+      `auto_accepted` — the dangerous silent case; a wrong `needs_review` already
+      got caught by the pipeline, so it isn't "unflagged"), accuracy by family,
+      token totals, `cost_usd` (real `$0.00`, local model).
+      `total_tokens_for_project()` sums every `source="llm"` row, not just the
+      latest-per-element subset — a superseded re-run still cost real tokens.
+      `scripts/evaluate.py` reuses P.4's ground-truth loader, writes a timestamped
+      `.md` + `.json` to `data/reports/eval/` (git-ignored). Self-tested only (10
+      tests) — real evaluation still needs njderidder's ground truth, same
+      blocker as P.4/2.7/3.6. **Verified live for real**, not just self-tested:
+      uploaded a real file with `engine="llm"`, let the real qwen2.5 classify it,
+      ran the real CLI against a hand-built ground truth for the known-correct
+      elements — 6 compared, 83.3% overall accuracy, 100% auto-accept precision,
+      0% unflagged errors, real token totals (9584 prompt + 1429 completion),
+      correct per-family breakdown, real `.md`/`.json` files written to disk with
+      valid content. 165/165 pytest, run twice, no leaks.
 
 ## Phase 4 — Frontend application (weeks 4–7)
 - [ ] **4.1 Projects pages** — list (search, status), create/edit form, project detail shell.

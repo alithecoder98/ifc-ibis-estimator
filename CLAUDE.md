@@ -175,7 +175,8 @@ njderidder's reply. No new client commitment has arrived — this is a deliberat
 to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
 Phase P and the decision log above for the full history.
 
-**Phase:** 3 — AI classification engine, **3.1–3.7 done**. Phase 2 (2.1–2.7) complete.
+**Phase 3 — AI classification engine: fully complete (3.1–3.8).** Phase 2 (2.1–2.7)
+complete. **Next: Phase 4 (frontend), starting at 4.1.**
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -430,9 +431,26 @@ queue pytest uses, so it picked up and actually ran a test's enqueued `extract` 
 racing that test's own manual DB state change and producing a confusing, flaky
 failure unrelated to the code under test - now documented as a standing risk, not
 just a staleness concern, in the "Process hygiene" note above.
-**Next up:** Phase 3.8 — evaluation harness (`scripts/evaluate.py`: accuracy,
-auto-accept rate, missed errors, cost per model, confusion by family; results
-saved with timestamp). This is Phase 3's last sub-phase. No open decisions block
-building the mechanism, but a *real* evaluation run needs njderidder's ground
-truth - same blocker as P.4/2.7/3.6's calibration script; build it self-tested,
-same pattern as those three.
+**Also this session:** 3.8 (evaluation harness) done — **Phase 3 (3.1–3.8) is now
+fully complete.** New migration `10d703fe08b6` adds
+`classifications.prompt_tokens`/`completion_tokens` (null for rule/jev rows -
+"not applicable" differs from "zero cost"), populated in `classify.py`'s llm
+branch - without this, "cost per model" would've been fabricated, since the values
+were already computed transiently but never persisted. `app/ai/evaluate.py`:
+overall accuracy, auto-accept rate/precision, **unflagged error rate** (wrong
+*and* `auto_accepted` - the dangerous silent case), accuracy by family, token
+totals, real `$0.00` cost. `scripts/evaluate.py` writes a timestamped `.md`+`.json`
+to `data/reports/eval/` (git-ignored). 165/165 pytest, run twice, no leaks.
+**Verified live for real**: uploaded a file with `engine="llm"`, let the real
+qwen2.5 classify it, ran the real CLI against a hand-built ground truth - 83.3%
+accuracy, 100% auto-accept precision, 0% unflagged errors, real token totals
+(9584+1429), correct per-family breakdown, valid `.md`/`.json` on disk.
+**Next up:** Phase 4 — frontend application, starting at **4.1 Projects pages**
+(list with search/status, create/edit form, project detail shell). This is a mode
+shift from backend-only work: Next.js 15, TypeScript strict, Tailwind, shadcn/ui
+(Base UI primitives here, not Radix - `render` prop, not `asChild`, per the
+Windows/environment quirks above), React Query, a typed API client generated from
+the FastAPI OpenAPI schema. No open decisions block it. Per CLAUDE.md's own "How we
+work together": explain frontend/3D-viewer parts in more depth than backend ones -
+this user is comfortable with Python/automation but frontend is less familiar
+territory for them.
