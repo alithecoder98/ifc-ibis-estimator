@@ -175,7 +175,7 @@ njderidder's reply. No new client commitment has arrived — this is a deliberat
 to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
 Phase P and the decision log above for the full history.
 
-**Phase:** 3 — AI classification engine, **3.1–3.5 done**. Phase 2 (2.1–2.7) complete.
+**Phase:** 3 — AI classification engine, **3.1–3.6 done**. Phase 2 (2.1–2.7) complete.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -204,19 +204,40 @@ container healthy but Postgres/Garage connections failed with
 Windows-side port proxy was stale. Fix: `docker compose restart <service>` on the
 affected ones (not full `docker compose up`, not a Docker Desktop restart) immediately
 clears it.
-**Process hygiene (bit three times now — 3.5's live test looked like a real bug for
-a while because of this):** killing background dev processes by port
-(`Get-NetTCPConnection`) only catches the API/web servers — `rq worker` doesn't bind a
-port, so that pattern never touches it. **Query by command line, not by "the one I
-just started"** — `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine
--match 'rq worker' }` and kill *every* PID it returns, every time, even when you
-only meant to restart one. Multiple stray workers from earlier in the same session
-(each from an earlier sub-phase's live test) can survive unnoticed and race a freshly
-started one for the next job — the stale one can win, silently run old code, and
-produce a result that looks like a real regression in the new code when the bug is
-actually "there were two workers." After killing, re-run the same query and confirm
-it returns nothing before trusting any live test's result — don't trust a single
-kill attempt, and don't assume "I started a new one" means "only one is running."
+**Process hygiene (bit four times now — 3.6's live test looked like a real bug for a
+long while because of this, on top of 3.5's own instance of the same class of bug):**
+killing background dev processes by port (`Get-NetTCPConnection`) only catches the
+API/web servers — `rq worker` doesn't bind a port, so that pattern never touches it.
+**The exact filter matters, not just "query by command line":**
+`-match 'rq worker'` (as a contiguous phrase) does **not** match the actual
+child-process command lines `uv run rq worker` spawns — `"rq.exe" worker
+--worker-class ...` has a quote and a space between `rq.exe` and `worker`, so that
+filter silently misses every real worker process and only ever catches the
+top-level `uv.exe run rq worker` wrapper. **Use
+`-match 'rq\.exe|rq worker|uvicorn'`** (covering the wrapper, the real child, and
+the API server) and kill *every* PID it returns, every time, even when you only
+meant to restart one. Multiple stray workers from earlier in the same session (each
+from an earlier sub-phase's live test, surviving because the old filter never saw
+them) can accumulate for the entire session and race a freshly started one for the
+next job — the stale one can win, silently run old code, and produce a result that
+looks like a real regression in brand-new code when the actual bug is "there were N
+workers nobody could see." After killing, re-run the same (correct) query and
+confirm it returns nothing before trusting any live test's result — don't trust a
+single kill attempt, and don't assume "I started a new one" means "only one is
+running," and don't assume your own filter is catching what you think it's catching
+without actually listing full command lines at least once to check.
+**Any in-process cache keyed by content (not by a request/job ID) is unsafe across
+long-lived worker processes if it holds ORM objects.** `app/ai/retrieval.py`'s
+Phase 3.3 cache was a module-level dict keyed by `group_hash` — purely content-based,
+so a second upload of a similar IFC file reused a previous job's `CodeList`
+instances, still bound to that job's already-closed DB session
+(`DetachedInstanceError`, only visible when the *same* fixture is processed twice in
+one worker's lifetime — a single-job test can't see it). Fixed by making the cache
+caller-scoped: the function takes a `cache` dict the caller creates fresh per call,
+never a module-level one. The same question is worth asking of any future
+`app/ai/*` cache: does its key only depend on content, and could two different
+calls with the same key happen in the same process across two different DB
+sessions? If yes, it can't be module-level.
 **Running `pnpm build` while `pnpm dev` is active against the same `apps/web/.next`
 directory corrupts the dev server every time** (`ENOENT ... _buildManifest.js.tmp...`,
 then 500s on every route) — bitten twice now during routine audits. Either stop the
@@ -361,10 +382,28 @@ processing the first live-test upload with pre-3.5 code and making it look like 
 engine dispatch hadn't worked. Fixed by killing *every* PID matching `rq worker`,
 not just the most recently started one, and confirming zero remain before trusting
 the next result - now the strengthened standing rule, not just this session's fix.
-**Next up:** Phase 3.6 — confidence + routing (combine self_score, rule/LLM/jev
-agreement, retrieval shortlist distance, data completeness into one routing
-decision; hard flags for proxy/missing-quantity/composite/unknown-material;
-configurable thresholds; a calibration script picking a threshold for ≥95%
-auto-accept precision on ground truth). No open decisions block it, but real
-calibration needs real ground truth - still blocked on njderidder's data, same as
-P.4/2.7; build the mechanism now, self-tested, same pattern as those two.
+**Also this session:** 3.6 (confidence + routing) done — **Phase 3 is now fully
+complete except 3.7/3.8** (3.5 directly above was this same session too).
+`app/ai/confidence.py` combines self_score/agreement/shortlist-rank/completeness
+into `confidence` (`self_score` keeps the raw per-engine value — the schema already
+had both columns for exactly this); hard flags force `needs_review` regardless of
+score. Wired directly into `classify.py` this time (3.6 *is* the consumer 3.3/3.4
+were waiting for). `scripts/calibrate.py` + `app/ai/calibrate.py` reuse P.4's
+ground-truth loader, self-tested only (same blocker as P.4/2.7). 146/146 pytest,
+run twice, no leaks.
+**Two more real bugs caught live, neither by any test — both now fixed and covered
+by regression tests:** (1) `app/ai/retrieval.py`'s cache was module-level and
+content-keyed (`group_hash`), so a second upload of a similar file in the same
+worker process reused a previous job's `CodeList` objects bound to an already-closed
+session — see the new standing note above on content-keyed caches. (2) The real LLM
+and `hard_flags()` independently report overlapping flags (e.g. both say
+`proxy_element`), so stored rows showed duplicates until `_merge_flags()` deduped
+them. **Diagnosing both took far longer than it should have because of a third bug:
+the kill-worker filter used all session was itself wrong** (see the strengthened
+"Process hygiene" note above) — every earlier "confirmed zero workers" this session
+was actually leaving real worker processes alive, undetected, the entire time.
+**Next up:** Phase 3.7 — classification job (worker step after extraction; progress
+reporting; a re-run endpoint). Mostly already done in practice — `classify_elements`
+has been the worker's final step since P.2 — so this sub-phase is really about
+making re-running classification an explicit, callable thing (e.g. after rules
+change), not a first build. No open decisions block it.

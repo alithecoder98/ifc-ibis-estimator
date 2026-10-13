@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     jev_api_url: str = ""
     jev_api_key: str = ""
 
+    # Phase 3.6: the only calibrated part of app/ai/confidence.py - scripts/calibrate.py
+    # picks this from real ground truth once it exists; 0.8 is a placeholder until then.
+    auto_accept_threshold: float = 0.8
+
 
 @lru_cache
 def get_settings() -> Settings:

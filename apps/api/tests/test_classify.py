@@ -11,13 +11,22 @@ from pathlib import Path
 
 import pytest
 
-from app.ai.classify import AUTO_ACCEPT_THRESHOLD, classify_elements
+from app.ai.classify import _merge_flags, classify_elements
 from app.ai.embedder import FakeEmbedder
 from app.ai.jev import JevClient, JevResult, StubJevClient, get_jev_client
 from app.ai.llm import LLMResult
 from app.core.config import get_settings
 from app.core.constants import EMBEDDING_DIM
-from app.db.models import Classification, CodeList, Element, IfcFile, Job, Project, User
+from app.db.models import (
+    Classification,
+    CodeList,
+    Element,
+    IfcFile,
+    Job,
+    Project,
+    Quantity,
+    User,
+)
 from app.db.session import SessionLocal
 from app.storage import upload_fileobj
 from app.workers.extraction import process_ifc_file
@@ -152,7 +161,7 @@ class _FakeLLMClient:
         )
 
 
-def _setup_project_and_element(engine: str) -> tuple[int, int, Element, int]:
+def _setup_project_and_element(engine: str) -> tuple[int, int, int, int]:
     """Also seeds one real CodeList row ("21.10", family "wall") so classify_with_llm
     has a valid candidate to accept - without it, every ibis_code the fake LLM
     returns would correctly fail validation as "not one of the candidates".
@@ -183,14 +192,29 @@ def _setup_project_and_element(engine: str) -> tuple[int, int, Element, int]:
     # in-process keyed by group_hash, so two tests sharing one literal group_hash
     # would have the second reuse the first's cached CodeList rows - bound to a
     # session that test already closed.
+    # Complete materials/is_external/quantity data - Phase 3.6's hard flags
+    # (unknown_material, missing_quantity) would otherwise force needs_review
+    # regardless of self_score, which isn't what these tests are checking.
     element = Element(
         ifc_file_id=ifc_file.id,
         global_id="G1",
         ifc_class="IfcWall",
+        is_external=True,
+        materials=[{"material": "Concrete", "thickness_mm": 200.0}],
         profile_text="profile",
         group_hash=uuid.uuid4().hex,
     )
     db.add(element)
+    db.flush()
+    db.add(
+        Quantity(
+            element_id=element.id,
+            quantity_type="area_net",
+            value=10.0,
+            unit="m2",
+            source="qto",
+        )
+    )
 
     code = CodeList(
         ibis_code="21.10",
@@ -201,7 +225,14 @@ def _setup_project_and_element(engine: str) -> tuple[int, int, Element, int]:
     )
     db.add(code)
     db.commit()
-    return project.id, user.id, element, code.id
+    project_id, user_id, element_id, code_id = (
+        project.id,
+        user.id,
+        element.id,
+        code.id,
+    )
+    db.close()
+    return project_id, user_id, element_id, code_id
 
 
 def _delete_code(code_id: int) -> None:
@@ -211,10 +242,31 @@ def _delete_code(code_id: int) -> None:
     db.close()
 
 
+def test_merge_flags_dedupes_preserving_order() -> None:
+    # Caught live in Phase 3.6: the real LLM independently reported "proxy_element"
+    # (it has the same flag vocabulary suggested in docs/estimating_rules.md) and
+    # compute_confidence()'s hard_flags() added it again for the same reason -
+    # without dedup, the stored row showed it twice.
+    assert _merge_flags(["proxy_element", "ambiguous_material"], ["proxy_element"]) == [
+        "proxy_element",
+        "ambiguous_material",
+    ]
+
+
+def test_merge_flags_handles_none_engine_flags() -> None:
+    assert _merge_flags(None, ["code_none"]) == ["code_none"]
+
+
+def test_merge_flags_returns_none_when_empty() -> None:
+    assert _merge_flags(None, []) is None
+    assert _merge_flags([], []) is None
+
+
 def test_classify_elements_engine_llm_calls_llm_only() -> None:
-    project_id, user_id, element, code_id = _setup_project_and_element("llm")
+    project_id, user_id, element_id, code_id = _setup_project_and_element("llm")
     db = SessionLocal()
     try:
+        element = db.get(Element, element_id)
         llm_client = _FakeLLMClient(
             LLMResult(
                 ibis_code="21.10",
@@ -256,9 +308,10 @@ def test_classify_elements_engine_llm_calls_llm_only() -> None:
 
 
 def test_classify_elements_engine_both_agree() -> None:
-    project_id, user_id, element, code_id = _setup_project_and_element("both")
+    project_id, user_id, element_id, code_id = _setup_project_and_element("both")
     db = SessionLocal()
     try:
+        element = db.get(Element, element_id)
         llm_client = _FakeLLMClient(
             LLMResult(
                 ibis_code="21.10",
@@ -310,9 +363,10 @@ def test_classify_elements_engine_both_agree() -> None:
 
 
 def test_classify_elements_engine_both_disagree() -> None:
-    project_id, user_id, element, code_id = _setup_project_and_element("both")
+    project_id, user_id, element_id, code_id = _setup_project_and_element("both")
     db = SessionLocal()
     try:
+        element = db.get(Element, element_id)
         llm_client = _FakeLLMClient(
             LLMResult(
                 ibis_code="21.10",
@@ -409,12 +463,11 @@ def test_process_ifc_file_creates_classifications_grouped_correctly() -> None:
         # Every element gets exactly one classification row.
         assert len(classifications) == len(elements) == 13
         assert all(c.source == "jev" for c in classifications)
-        assert all(c.flags == ["jev_stub"] for c in classifications)
-        # Stub confidence (0.0) is always below AUTO_ACCEPT_THRESHOLD.
-        assert all(
-            c.confidence is not None and c.confidence < AUTO_ACCEPT_THRESHOLD
-            for c in classifications
-        )
+        assert all("jev_stub" in c.flags for c in classifications)
+        # Stub jev never returns a code, so Phase 3.6's "code_none" hard flag
+        # forces needs_review regardless of the (always-low, stub-driven) final
+        # confidence score - not just a threshold comparison.
+        assert all("code_none" in c.flags for c in classifications)
         assert all(c.status == "needs_review" for c in classifications)
     finally:
         db.close()

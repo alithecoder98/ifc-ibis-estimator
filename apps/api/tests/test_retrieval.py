@@ -8,7 +8,6 @@ per the plan's "tests with seeded examples return expected neighbours."
 
 from app.ai.embedder import FakeEmbedder
 from app.ai.retrieval import (
-    clear_cache,
     guess_family,
     shortlist_and_examples,
     shortlist_codes,
@@ -149,7 +148,6 @@ def test_similar_examples_ranks_shared_words_above_unrelated() -> None:
 
 
 def test_shortlist_and_examples_caches_per_group_hash() -> None:
-    clear_cache()
     db = SessionLocal()
     rows = _seed_codes()
     db.add_all(rows)
@@ -165,24 +163,71 @@ def test_shortlist_and_examples_caches_per_group_hash() -> None:
                 call_count += 1
                 return base_embedder.embed(texts)
 
+        cache: dict = {}
         codes_a, examples_a = shortlist_and_examples(
-            db, CountingEmbedder(), "group-1", "concrete wall", "IfcWall", None
+            db, CountingEmbedder(), "group-1", "concrete wall", "IfcWall", None, cache
         )
         assert call_count == 2  # one for codes, one for examples
 
         codes_b, examples_b = shortlist_and_examples(
-            db, CountingEmbedder(), "group-1", "concrete wall", "IfcWall", None
+            db, CountingEmbedder(), "group-1", "concrete wall", "IfcWall", None, cache
         )
         assert call_count == 2  # same group_hash - no new embedder calls
         assert codes_a == codes_b
         assert examples_a == examples_b
 
         shortlist_and_examples(
-            db, CountingEmbedder(), "group-2", "timber roof", "IfcRoof", None
+            db, CountingEmbedder(), "group-2", "timber roof", "IfcRoof", None, cache
         )
         assert call_count == 4  # different group_hash - cache miss
     finally:
-        clear_cache()
+        db.query(CodeList).filter(CodeList.id.in_(ids)).delete(
+            synchronize_session=False
+        )
+        db.commit()
+        db.close()
+
+
+def test_shortlist_and_examples_cache_is_caller_scoped_not_global() -> None:
+    """The regression this guards: a module-level cache would hand a *second*,
+    unrelated call (simulating a separate worker job) CodeList instances still
+    bound to the *first* call's now-closed session, raising DetachedInstanceError -
+    found live in Phase 3.6 when the same fixture was uploaded twice in one worker
+    process. A fresh {} per call must never see the previous call's entries.
+    """
+    db = SessionLocal()
+    rows = _seed_codes()
+    db.add_all(rows)
+    db.commit()
+    ids = [r.id for r in rows]
+    try:
+        first_cache: dict = {}
+        shortlist_and_examples(
+            db,
+            FakeEmbedder(EMBEDDING_DIM),
+            "group-shared",
+            "concrete wall",
+            "IfcWall",
+            None,
+            first_cache,
+        )
+        db.close()  # simulates the first job's process_ifc_file() finishing
+
+        second_cache: dict = {}
+        db = SessionLocal()
+        codes, _ = shortlist_and_examples(
+            db,
+            FakeEmbedder(EMBEDDING_DIM),
+            "group-shared",
+            "concrete wall",
+            "IfcWall",
+            None,
+            second_cache,
+        )
+        # Proves it's a real, live, usable result from *this* session, not a
+        # detached instance smuggled in from the cache of the call above.
+        assert codes[0].ibis_code
+    finally:
         db.query(CodeList).filter(CodeList.id.in_(ids)).delete(
             synchronize_session=False
         )

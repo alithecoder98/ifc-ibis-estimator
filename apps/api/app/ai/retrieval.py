@@ -1,12 +1,15 @@
 """Phase 3.3 — shortlists candidate codes and similar past examples for an element
 profile, feeding 3.4's LLM prompt (profile + candidates + examples + rules summary).
-Not wired into app/ai/classify.py yet - there's no LLM step to consume this output
-until 3.4 exists.
 
-Caches per group_hash in-process (a plain module-level dict, cleared with
-clear_cache() - this worker process's lifetime only, not shared across workers or
-persisted) since elements sharing a group need the same embedding + search results,
-the same "one lookup per group" reasoning classify.py already applies to jev.
+Caches per group_hash, but the cache must be supplied by the caller
+(shortlist_and_examples' `cache` argument) and live only as long as one
+classify_elements() call - never a module-level dict. group_hash is purely
+content-based (app/ifc/profile.py), so two separate uploads of similar-enough IFC
+files produce the *same* group_hash values; a process-lifetime cache would hand a
+later job CodeList/ExampleMemory instances still bound to an earlier job's already-
+closed DB session, raising DetachedInstanceError. Caught live in Phase 3.6's
+verification, not by any test - two uploads of the same fixture in the same worker
+process is exactly the shape of bug a single-job test run can't see.
 """
 
 from sqlalchemy.orm import Session
@@ -78,9 +81,6 @@ def similar_examples(
     )
 
 
-_cache: dict[str, tuple[list[CodeList], list[ExampleMemory]]] = {}
-
-
 def shortlist_and_examples(
     db: Session,
     embedder: OllamaEmbedder,
@@ -88,18 +88,20 @@ def shortlist_and_examples(
     profile_text: str,
     ifc_class: str,
     predefined_type: str | None,
+    cache: dict[str, tuple[list[CodeList], list[ExampleMemory]]],
 ) -> tuple[list[CodeList], list[ExampleMemory]]:
-    if group_hash in _cache:
-        return _cache[group_hash]
+    """`cache` is owned by the caller and must not outlive the DB session its
+    results are bound to - one classify_elements() call creates a fresh {} and
+    passes it to every call it makes, never a module-level dict (see the module
+    docstring for why).
+    """
+    if group_hash in cache:
+        return cache[group_hash]
 
     family = guess_family(ifc_class, predefined_type)
     result = (
         shortlist_codes(db, profile_text, embedder, family=family),
         similar_examples(db, profile_text, embedder),
     )
-    _cache[group_hash] = result
+    cache[group_hash] = result
     return result
-
-
-def clear_cache() -> None:
-    _cache.clear()

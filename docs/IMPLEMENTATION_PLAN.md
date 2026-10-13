@@ -388,10 +388,44 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       hadn't taken effect at all. Fixed by killing every PID matching `rq worker`
       (not just the one most recently started) and confirming zero remain before
       trusting any live result - see the strengthened note in CLAUDE.md.
-- [ ] **3.6 Confidence + routing** — combine self_score, rule/LLM/jev agreement, shortlist distance,
+- [x] **3.6 Confidence + routing** — combine self_score, rule/LLM/jev agreement, shortlist distance,
       data completeness; hard flags (proxy, missing quantity, composite, unknown material);
       thresholds configurable; status = auto_accepted | needs_review.
       Done when: calibration script picks threshold so auto-accepted precision ≥ 95% on ground truth.
+      ✅ 2026-10-13 — `app/ai/confidence.py`: `compute_confidence()` weights self_score
+      (0.5), agreement (0.2), shortlist rank (0.15, a cheap proxy for "distance" -
+      real cosine values aren't threaded through, candidate position is), and data
+      completeness (0.15) into `confidence` (`self_score` keeps the raw per-engine
+      value unchanged - the schema already had both columns, clearly meant for
+      exactly this split). Hard flags force `needs_review` regardless of score.
+      Weights are a reasoned placeholder; **only the threshold is calibrated**
+      (`settings.auto_accept_threshold`, `scripts/calibrate.py` + `app/ai/calibrate.py`,
+      reusing P.4's ground-truth loader, self-tested only - same client-data blocker
+      as P.4/2.7). Wired directly into `app/ai/classify.py` (unlike 3.3/3.4, which
+      stayed standalone until a consumer existed) since this *is* the consumer.
+      Retrieval only runs when the engine uses the LLM, same CI-safety reasoning as
+      3.5 - jev-only stays fully offline. 146/146 pytest, run twice, no leaks.
+      **Two real bugs caught live, neither by any test:**
+      (1) `app/ai/retrieval.py`'s Phase 3.3 cache was a module-level dict keyed by
+      `group_hash`, which is purely content-based - a second upload of a
+      similar-enough IFC file in the same long-lived worker process reused a
+      previous job's `CodeList` objects, bound to that job's already-closed DB
+      session (`DetachedInstanceError`). Fixed by making the cache **caller-scoped**:
+      `shortlist_and_examples()` now takes a `cache` dict the caller owns, and
+      `classify_elements()` creates a fresh `{}` per call rather than ever sharing
+      one across jobs. (2) The real LLM independently reports flags like
+      `proxy_element` (it has the same vocabulary suggested in
+      `docs/estimating_rules.md`) that `hard_flags()` also adds for the same
+      element - stored rows showed the same flag twice until `_merge_flags()`
+      deduped them. **A third, process-hygiene bug compounded diagnosing both:**
+      the kill command used throughout this session (`CommandLine -match 'rq
+      worker'`) never matched the actual child-process command-line shape
+      (`"rq.exe" worker ...`, quote-then-space, not the contiguous text "rq
+      worker") - so every earlier "kill and verify zero" in this session was
+      silently incomplete, and stray workers from 3.1 onward had been piling up
+      the whole time. Fixed by matching `'rq\.exe|rq worker|uvicorn'` and actually
+      confirming zero before trusting any live result - this is now the
+      standing rule in CLAUDE.md, not just a note for next time.
 - [ ] **3.7 Classification job** — worker step after extraction; progress reporting; re-run endpoint.
       Done when: upload → extraction → classification runs end to end on a fixture.
 - [ ] **3.8 Evaluation harness** — `scripts/evaluate.py`: accuracy, auto-accept rate, missed errors,
