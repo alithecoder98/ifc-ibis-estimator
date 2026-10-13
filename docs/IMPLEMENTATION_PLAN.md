@@ -115,9 +115,20 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       declares millimetre length but plain metre-based area/volume, which would have
       silently produced wrong values otherwise. Verified via pytest (35/35) and live
       through the real upload → worker → DB pipeline for both fixtures.
-- [ ] **2.4 Geometry fallback** — ifcopenshell.geom for area/volume/length when Qto missing;
+- [x] **2.4 Geometry fallback** — ifcopenshell.geom for area/volume/length when Qto missing;
       opening deductions for walls; per-layer quantities for composites; source = geometry.
       Done when: fallback results within ±3% of Qto on elements that have both.
+      ✅ 2026-10-13 — 0.00% deviation on all 7 real walls/slabs tested (real_sample.ifc,
+      both Qto and geometry present), exact match on 2 purpose-built synthetic cases.
+      Openings deducted correctly (verified exactly against a hand-built wall+door:
+      3.0m³ gross → 2.58m³ net, matching the opening's own 0.42m³ volume exactly) via
+      ifcopenshell's own boolean-subtraction behavior, not manual face analysis.
+      **Per-layer composite quantities not implemented** — asked first rather than
+      guessed: the `quantities` table has no concept of a material layer, extending it
+      wasn't scoped here, deferred to Phase 6.2 where the plan actually uses it. Only
+      applies when Qto is completely absent for an element — never overrides real Qto
+      data (verified live). Verified via pytest (41/41) and live through the real
+      pipeline. ruff/black clean.
 - [ ] **2.5 Element profiles + grouping** — `profile_text` per element; group hash for identical types.
       Done when: profiles deterministic (snapshot tests); grouping reduces element count in report.
 - [ ] **2.6 Fragments for viewer** — convert IFC to That Open fragments in worker (Node script or

@@ -147,7 +147,7 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 
 ## Current status
 
-**Phase:** 2 — IFC processing engine, in progress (2.1, 2.2, 2.3 done).
+**Phase:** 2 — IFC processing engine, in progress (2.1, 2.2, 2.3, 2.4 done).
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -180,14 +180,26 @@ grep existing `_cleanup()` helpers for the table it references.
 types, plus a real public-domain sample with authoring-tool messiness). Only **2.7**
 (extraction comparison report against `data/ground_truth.csv`) and later QA/export
 phases are actually blocked on client data — see "Still open" below.
-**Last session:** 2026-10-13 — sub-phase 2.3 (quantities from Qto) done:
-`app/ifc/quantities.py` reads `Qto_<Class>BaseQuantities` sets, maps IFC's
-inconsistent per-class property names onto canonical `quantity_type`s, converts to SI.
-Exact match on the synthetic fixture's wall/slab/footing values, plausible real values
-on `real_sample.ifc`. Verified via pytest (35/35) and live through the real pipeline.
-Also recently: sub-phase 2.2 (element extraction); the `AUTH_DISABLED` dev-mode login
-bypass (`/` redirects to `/projects` instead of `/login` as a side effect).
+**Last session:** 2026-10-13 — sub-phase 2.4 (geometry fallback) done:
+`app/ifc/geometry.py` computes volume_net/volume_gross (via ifcopenshell's own
+opening-subtraction boolean behavior, not manual face analysis), area_gross (total
+mesh surface — explicitly not the same concept as Qto's side-area, documented not
+pretended), and length (bounding-box extent) from 3D geometry, used by the worker only
+when an element has zero Qto quantities — never overrides real Qto data. 0.00%
+deviation from real Qto on all 7 comparable real elements, exact match on 2
+purpose-built synthetic cases (including a hand-verified wall+opening). Verified via
+pytest (41/41) and live through the real pipeline.
+**Scope decision made explicitly, not guessed:** "per-layer quantities for
+composites" (from the plan) isn't implemented — the `quantities` table has no concept
+of a material layer; deferred to Phase 6.2 (composite split review), which is where
+the plan actually uses it.
+Also recently: sub-phase 2.3 (quantities from Qto); sub-phase 2.2 (element
+extraction); the `AUTH_DISABLED` dev-mode login bypass (`/` redirects to `/projects`
+instead of `/login` as a side effect).
 **Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB) —
-revisit once one is available, relevant to both 2.2 and 2.3's "no memory blow-up" bar.
-**Next up:** sub-phase 2.4 — Geometry fallback (`ifcopenshell.geom` for area/volume/
-length when an element has no Qto data at all, `source="geometry"`).
+revisit once one is available, relevant to 2.2/2.3/2.4's "no memory blow-up" bar (2.4
+especially, since geometry triangulation is the first actually CPU/memory-heavy step
+in the pipeline).
+**Next up:** sub-phase 2.5 — Element profiles + grouping (`profile_text` per element,
+`group_hash` so identical element types are classified once — feeds Phase 3's
+classification pipeline).
