@@ -46,6 +46,15 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install node_fragments dependencies
+        run: npm ci
+        working-directory: apps/api/node_fragments
+
       - name: Ruff
         run: uv run ruff check .
 

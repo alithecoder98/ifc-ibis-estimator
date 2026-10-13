@@ -20,7 +20,7 @@ from app.core.deps import require_role
 from app.db.models import Classification, Element, IfcFile, Project, Quantity, User
 from app.db.session import get_db
 from app.schemas import IfcFileOut, ProjectCreate, ProjectOut
-from app.storage import upload_fileobj
+from app.storage import download_bytes, upload_fileobj
 from app.workers.extraction import process_ifc_file
 from app.workers.jobs import create_job
 from app.workers.queue import get_queue
@@ -182,3 +182,28 @@ def export_project_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/{project_id}/files/{file_id}/model")
+def get_fragments_model(
+    project_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator", "viewer")),
+) -> Response:
+    """Phase 2.6 — the converted That Open fragments file for the (not-yet-built) 3D
+    viewer. 404 until the file's processing job has reached the fragments step.
+    """
+    ifc_file = db.get(IfcFile, file_id)
+    if ifc_file is None or ifc_file.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="file not found"
+        )
+    if ifc_file.fragments_storage_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="fragments model not available yet",
+        )
+
+    fragments_bytes = download_bytes(ifc_file.fragments_storage_key)
+    return Response(content=fragments_bytes, media_type="application/octet-stream")

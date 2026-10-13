@@ -50,6 +50,9 @@ uv run uvicorn app.main:app --reload --port 8000
 
 # 3. Worker (separate terminal) — processes background jobs (IFC extraction, etc.)
 cd apps/api
+cd node_fragments && npm install && cd ..
+# ^ one-time: the worker shells out to node_fragments/convert.mjs (Phase 2.6, IFC ->
+# That Open fragments for the 3D viewer) — JS-only, no Python equivalent.
 uv run rq worker --worker-class rq.worker.SimpleWorker
 # ^ RQ's default worker uses os.fork(), unavailable on Windows — use SimpleWorker there.
 # On Linux/macOS/CI, plain `uv run rq worker` works too.

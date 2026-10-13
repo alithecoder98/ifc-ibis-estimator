@@ -157,13 +157,14 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 
 ## Current status
 
-**⚠ Priority changed 2026-10-13: Phase P (minimal PoC) is current, not Phase 2.6.**
-See `docs/IMPLEMENTATION_PLAN.md`'s Phase P and the decision log above. Phases 1–2.5
-below are done and real, just paused ahead of where they're needed — resume only on
-an explicit decision to go back to the full build.
+**⚠ Priority changed back 2026-10-13: full plan resumed at 2.6.** Phase P (minimal
+PoC, P.1–P.4) is done and was njderidder's actual near-term ask; the user explicitly
+chose to resume the paused full 9-phase build from Phase 2.6 rather than wait for
+njderidder's reply. No new client commitment has arrived — this is a deliberate choice
+to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
+Phase P and the decision log above for the full history.
 
-**Phase:** 2 — IFC processing engine, 2.1–2.5 done, **paused here** (not continuing to
-2.6/2.7 — see Phase P above).
+**Phase:** 2 — IFC processing engine, 2.1–2.6 done, continuing to 2.7.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -229,8 +230,20 @@ real upload's real classifications ran through the real CLI. 63/63 pytest, run t
 to confirm no leaks.
 Also recently: sub-phases 2.1–2.5 (full extraction pipeline); the `AUTH_DISABLED`
 dev-mode login bypass; the Phase P scope realignment itself (see decision log above).
+**This session:** 2.6 (fragments for the 3D viewer) done — resuming the full plan past
+Phase P at the user's explicit direction (see the priority note at the top of this
+section). `apps/api/node_fragments/convert.mjs` converts IFC -> That Open fragments via
+`@thatopen/fragments` v3.4.8's `IfcImporter`/`SingleThreadedFragmentsModel` (verified by
+installing the real package and reading its `.d.ts` before writing any code, then
+running it for real against both fixtures and inside the actual built worker Docker
+image — not just pytest). `app/ifc/fragments.py` invokes it via `subprocess` from the
+worker pipeline (not a standalone service, not browser-side conversion — see
+`docs/IMPLEMENTATION_PLAN.md`'s 2.6 entry for why). New migration `8c104e54e6a7` adds
+`ifc_files.fragments_storage_key`/`fragment_id_map`. New endpoint
+`GET /projects/{project_id}/files/{file_id}/model`. **New real dependency:** Node.js in
+`Dockerfile.worker` (API image untouched — it only enqueues jobs) and
+`actions/setup-node` in CI. 68/68 pytest, run twice, no leaks.
 **Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB).
-**Next up:** nothing buildable right now without new input — Phase P is fully done.
-Either njderidder's real jev credentials (making P.1/P.2 fully real instead of
-stubbed) or his reference files (making P.4 a real measurement instead of a
-self-test) — whichever arrives first.
+**Next up:** 2.7 — extraction comparison report (`scripts/compare_extraction.py` vs
+`data/ground_truth.csv`). Blocked on the same client data as Phase 0 (see "Still open"
+above) — flag this when picked up rather than guessing at a ground-truth format.

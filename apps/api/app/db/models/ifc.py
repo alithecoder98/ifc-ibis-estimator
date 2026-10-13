@@ -28,6 +28,16 @@ class IfcFile(Base):
     )
     # uploaded / extracting / extracted / classifying / done / failed
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="uploaded")
+    # Storage key of the converted That Open fragments file (Phase 2.6) — null until
+    # conversion runs.
+    fragments_storage_key: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+    # Maps each element's GlobalId to its fragment local ID, for the (not-yet-built)
+    # viewer's table <-> model sync (Phase 5.2). Inverse of what the Node conversion
+    # script produces (local ID -> GlobalId) — inverted once here since lookups will
+    # always start from an element's GlobalId, not a fragment ID.
+    fragment_id_map: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class Element(Base):

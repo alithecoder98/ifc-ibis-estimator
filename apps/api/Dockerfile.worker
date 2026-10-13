@@ -1,10 +1,20 @@
-# Production image for the RQ worker. Same dependencies as Dockerfile (the API image),
-# different CMD. Containers run Linux, so the plain `rq worker` (os.fork()-based) works
-# here even though local Windows dev needs --worker-class rq.worker.SimpleWorker
+# Production image for the RQ worker. Same Python dependencies as Dockerfile (the API
+# image), different CMD. Containers run Linux, so the plain `rq worker` (os.fork()-based)
+# works here even though local Windows dev needs --worker-class rq.worker.SimpleWorker
 # (see README) — that workaround is a Windows-host-only concern, not a container one.
+#
+# Also needs Node.js: process_ifc_file (app/workers/extraction.py) shells out to
+# node_fragments/convert.mjs for the IFC -> That Open fragments conversion (Phase 2.6)
+# — that library is JS-only, no Python equivalent. The API image doesn't need this; it
+# only enqueues the job, never runs it.
 FROM python:3.12-slim
 
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
 
@@ -13,5 +23,9 @@ RUN uv sync --locked --no-dev --no-install-project
 
 COPY . .
 RUN uv sync --locked --no-dev
+
+WORKDIR /app/node_fragments
+RUN npm ci --omit=dev
+WORKDIR /app
 
 CMD ["uv", "run", "--no-sync", "rq", "worker"]

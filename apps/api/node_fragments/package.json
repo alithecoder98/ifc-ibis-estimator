@@ -1,0 +1,12 @@
+{
+  "name": "node_fragments",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Phase 2.6: converts an IFC file to the That Open fragments format server-side, for the (not-yet-built) 3D viewer. Invoked by app/ifc/fragments.py via subprocess, never run on its own.",
+  "type": "module",
+  "dependencies": {
+    "@thatopen/fragments": "3.4.8",
+    "three": "0.186.1",
+    "web-ifc": "0.0.78"
+  }
+}

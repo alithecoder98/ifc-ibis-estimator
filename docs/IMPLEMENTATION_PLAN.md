@@ -223,9 +223,25 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       an `"id"` key into every pset dict (the pset's own STEP id) — without excluding
       it, profile_text would show `Properties: id=24` as if it were a real IFC
       property. 49/49 pytest, ruff/black clean.
-- [ ] **2.6 Fragments for viewer** — convert IFC to That Open fragments in worker (Node script or
+- [x] **2.6 Fragments for viewer** — convert IFC to That Open fragments in worker (Node script or
       service), store file, map fragment IDs ↔ GlobalIds.
       Done when: fragments file downloadable via `GET /files/{id}/model`.
+      ✅ 2026-10-13 — Node subprocess invoked from the existing Python worker job
+      (`apps/api/node_fragments/convert.mjs`, called by `app/ifc/fragments.py`), not a
+      standalone service or browser-side conversion: the fragments file needs to exist
+      as a stored artifact independent of any viewer (Phase 5 doesn't exist yet), and a
+      subprocess call matches how `ifcopenshell.geom` is already only invoked when
+      needed. Verified the real `@thatopen/fragments` v3.4.8 API by installing it in a
+      scratch dir and reading its `.d.ts` before writing any code — `IfcImporter.process()`
+      for conversion, `SingleThreadedFragmentsModel` + `getGuidsByLocalIds()` for the
+      id map — then ran it for real against both fixtures before trusting it. Route is
+      `GET /projects/{project_id}/files/{file_id}/model` (nested, matching the existing
+      upload route), not the plan's flat `/files/{id}/model`. New migration
+      `8c104e54e6a7` adds `ifc_files.fragments_storage_key` +
+      `ifc_files.fragment_id_map` (GlobalId → fragment local ID, inverse of what the
+      Node script produces — lookups always start from an element's GlobalId). New
+      dependency: Node.js in `Dockerfile.worker` only (the API image just enqueues the
+      job, never runs it) + `actions/setup-node` in CI's `api` job.
 - [ ] **2.7 Extraction report** — `scripts/compare_extraction.py` vs ground truth: element coverage,
       quantity deviation per code.
       Done when: report generated for all reference projects.

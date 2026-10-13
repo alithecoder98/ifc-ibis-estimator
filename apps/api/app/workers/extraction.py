@@ -5,8 +5,9 @@ quantities, and inserts both into the DB in batches. Quantities come from Qto se
 (Phase 2.3) where present; geometry (Phase 2.4, ifcopenshell.geom — the only step that
 touches geometry, so it's the only one with any real memory/CPU cost) fills in only
 for elements with no Qto data at all, never overriding real Qto data. Each element also
-gets a profile_text and group_hash (Phase 2.5) once its quantities are known, and
-finally a jev-based classification (Phase P.2), one jev call per group.
+gets a profile_text and group_hash (Phase 2.5) once its quantities are known, then a
+jev-based classification (Phase P.2, one jev call per group), and finally a That Open
+fragments conversion for the not-yet-built 3D viewer (Phase 2.6).
 """
 
 import tempfile
@@ -18,10 +19,11 @@ from app.ai.classify import classify_elements
 from app.db.models import Element, IfcFile, Job, Quantity
 from app.db.session import SessionLocal
 from app.ifc.extract import build_element_data, iter_supported_elements
+from app.ifc.fragments import convert_to_fragments
 from app.ifc.geometry import compute_geometry_quantities
 from app.ifc.profile import build_profile_text, compute_group_hash
 from app.ifc.quantities import extract_quantities
-from app.storage import download_to_path
+from app.storage import download_to_path, upload_bytes
 
 BATCH_SIZE = 500
 
@@ -42,6 +44,7 @@ def process_ifc_file(job_id: int, ifc_file_id: int) -> None:
             tmp_path = Path(tmp_dir) / "input.ifc"
             download_to_path(ifc_file.storage_key, tmp_path)
             opened = ifcopenshell.open(str(tmp_path))
+            fragments_bytes, local_id_by_global_id = convert_to_fragments(tmp_path)
 
             raw_elements = list(iter_supported_elements(opened))
             elements_data = [build_element_data(e) for e in raw_elements]
@@ -71,14 +74,21 @@ def process_ifc_file(job_id: int, ifc_file_id: int) -> None:
                 db.add_all(Quantity(element_id=orm_element.id, **q) for q in quantities)
 
             db.flush()
-            # Extraction is 90% of the job; classification is the last 10%.
+            # Extraction is 80% of the job; classification and fragments conversion
+            # share the last 20%.
             job.progress = (
-                int(min(start + len(batch), total) / total * 90) if total else 90
+                int(min(start + len(batch), total) / total * 80) if total else 80
             )
             db.commit()
 
         classify_elements(db, all_orm_elements)
+        job.progress = 90
         db.commit()
+
+        fragments_key = f"projects/{ifc_file.project_id}/fragments/{ifc_file_id}.frag"
+        upload_bytes(fragments_bytes, fragments_key)
+        ifc_file.fragments_storage_key = fragments_key
+        ifc_file.fragment_id_map = local_id_by_global_id
 
         ifc_file.status = "extracted"
         job.status = "done"
