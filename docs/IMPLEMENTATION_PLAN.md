@@ -426,8 +426,39 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       the whole time. Fixed by matching `'rq\.exe|rq worker|uvicorn'` and actually
       confirming zero before trusting any live result - this is now the
       standing rule in CLAUDE.md, not just a note for next time.
-- [ ] **3.7 Classification job** — worker step after extraction; progress reporting; re-run endpoint.
+- [x] **3.7 Classification job** — worker step after extraction; progress reporting; re-run endpoint.
       Done when: upload → extraction → classification runs end to end on a fixture.
+      ✅ 2026-10-13 — The "worker step after extraction" and "end to end on a
+      fixture" halves were already true since Phase P.2 (`classify_elements` has
+      always been `process_ifc_file`'s last real step); this sub-phase added the
+      genuinely new parts. `app/ai/classify.py`: `classify_elements()` now commits
+      after each rule-matched element and each AI-engine group (was one
+      transaction for the whole call) and takes `progress_callback` (invoked after
+      each commit) and `force: bool = False` (skips elements that already have a
+      `Classification` row). Together these make a crash lose at most the one
+      batch in flight - true resumability, not just a retry that redoes
+      everything. `app/workers/extraction.py` maps that progress onto its existing
+      80→90% range. `app/workers/classification.py` (new): `reclassify_ifc_file()`
+      calls `classify_elements(..., force=True, ...)` - the explicit point of a
+      user-triggered re-run (e.g. after adding rules/codes) is to re-evaluate
+      everything, not skip what's already classified; "latest classification
+      wins" is already the project's convention (`app/ai/calibrate.py`'s
+      `gather_scored_rows`), so re-run adds fresher rows rather than deleting old
+      ones. `POST /projects/{project_id}/files/{file_id}/classify` (admin/
+      estimator; 404 wrong project, 400 not yet extracted) enqueues it. 155/155
+      pytest, run twice, no leaks. **Verified live, including the force=True path
+      for real**: uploaded a real file (13 elements → 13 classifications), called
+      the real endpoint, watched the real job reach `done`/`progress=100`, and
+      confirmed the classification count doubled to 26 (every element genuinely
+      re-evaluated, not skipped). **A new process-hygiene variant caught live,
+      compounding the "wrong kill regex" lesson from 3.6:** a worker left running
+      from an *earlier* sub-phase's live verification was still consuming the same
+      Redis queue the pytest suite itself uses — it picked up a test's real
+      "extract" job and actually ran it, racing the test's own manual DB state
+      changes and producing a flaky, confusing failure that had nothing to do
+      with the code under test. A dev worker left alive is now understood to be
+      a correctness risk for the test suite, not just a staleness risk for manual
+      verification - see CLAUDE.md's strengthened process-hygiene note.
 - [ ] **3.8 Evaluation harness** — `scripts/evaluate.py`: accuracy, auto-accept rate, missed errors,
       cost per model, confusion by family; results saved with timestamp.
       Done when: report produced for all reference projects (input to week-6 gate).

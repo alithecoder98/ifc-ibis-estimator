@@ -175,7 +175,7 @@ njderidder's reply. No new client commitment has arrived — this is a deliberat
 to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
 Phase P and the decision log above for the full history.
 
-**Phase:** 3 — AI classification engine, **3.1–3.6 done**. Phase 2 (2.1–2.7) complete.
+**Phase:** 3 — AI classification engine, **3.1–3.7 done**. Phase 2 (2.1–2.7) complete.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -225,7 +225,17 @@ workers nobody could see." After killing, re-run the same (correct) query and
 confirm it returns nothing before trusting any live test's result — don't trust a
 single kill attempt, and don't assume "I started a new one" means "only one is
 running," and don't assume your own filter is catching what you think it's catching
-without actually listing full command lines at least once to check.
+without actually listing full command lines at least once to check. **A live dev
+worker left running is a correctness risk for the test suite, not just a staleness
+risk for manual verification** — it and `pytest` share the same Redis instance
+(`redis://localhost:6379/0`), so a leftover worker from an earlier live-verification
+session will actually pick up and run a job a test just enqueued (e.g. the real
+`extract` job from an upload test), racing that test's own direct DB manipulation
+and producing a flaky, confusing failure with nothing to do with the code under
+test (3.7: a test set `ifc_file.status = "extracted"` by hand to check the classify
+endpoint's validation, and a stray worker overwrote it mid-test by actually
+extracting the file for real). Before trusting *any* test failure that touches
+jobs/uploads/worker-processed state, check for stray workers first.
 **Any in-process cache keyed by content (not by a request/job ID) is unsafe across
 long-lived worker processes if it holds ORM objects.** `app/ai/retrieval.py`'s
 Phase 3.3 cache was a module-level dict keyed by `group_hash` — purely content-based,
@@ -402,8 +412,27 @@ them. **Diagnosing both took far longer than it should have because of a third b
 the kill-worker filter used all session was itself wrong** (see the strengthened
 "Process hygiene" note above) — every earlier "confirmed zero workers" this session
 was actually leaving real worker processes alive, undetected, the entire time.
-**Next up:** Phase 3.7 — classification job (worker step after extraction; progress
-reporting; a re-run endpoint). Mostly already done in practice — `classify_elements`
-has been the worker's final step since P.2 — so this sub-phase is really about
-making re-running classification an explicit, callable thing (e.g. after rules
-change), not a first build. No open decisions block it.
+**Also this session:** 3.7 (classification job) done — **Phase 3 (3.1–3.7) is now
+complete; only 3.8 remains.** `app/ai/classify.py` now commits per rule-matched
+element/AI-engine group (not one transaction for the whole call) and takes
+`progress_callback` + `force: bool = False` (skips already-classified elements -
+true resumability after a crash, not just a retry that redoes everything).
+`app/workers/classification.py` (new): `reclassify_ifc_file()` uses `force=True` -
+re-running is supposed to re-evaluate everything, matching the project's existing
+"latest classification wins" convention rather than deleting old rows.
+`POST /projects/{project_id}/files/{file_id}/classify` (admin/estimator) triggers
+it. 155/155 pytest, run twice, no leaks. **Verified live for real, including the
+force=True path**: a real file's classification count doubled (13→26) after
+calling the real endpoint, confirming every element was genuinely re-evaluated.
+**A new variant of the process-hygiene problem, not a new bug class:** a worker
+left running from an *earlier* sub-phase's live test was consuming the same Redis
+queue pytest uses, so it picked up and actually ran a test's enqueued `extract` job,
+racing that test's own manual DB state change and producing a confusing, flaky
+failure unrelated to the code under test - now documented as a standing risk, not
+just a staleness concern, in the "Process hygiene" note above.
+**Next up:** Phase 3.8 — evaluation harness (`scripts/evaluate.py`: accuracy,
+auto-accept rate, missed errors, cost per model, confusion by family; results
+saved with timestamp). This is Phase 3's last sub-phase. No open decisions block
+building the mechanism, but a *real* evaluation run needs njderidder's ground
+truth - same blocker as P.4/2.7/3.6's calibration script; build it self-tested,
+same pattern as those three.

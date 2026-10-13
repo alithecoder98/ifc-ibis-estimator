@@ -278,3 +278,118 @@ def test_upload_to_nonexistent_project_404() -> None:
     finally:
         client.cookies.clear()
         _delete_user(user.id)
+
+
+def test_classify_endpoint_requires_extracted_file() -> None:
+    """Phase 3.7: re-running classification before extraction has even finished
+    makes no sense - there are no elements yet.
+    """
+    user = _create_user("estimator-3.7a@example.com", "estimator")
+    _login_as(user)
+    project_id = None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Classify 400 Project"}
+        ).json()["id"]
+        with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+            file_id = client.post(
+                f"/projects/{project_id}/files",
+                files={"file": ("sample.ifc", fh, "application/octet-stream")},
+            ).json()["id"]
+
+        response = client.post(f"/projects/{project_id}/files/{file_id}/classify")
+        assert response.status_code == 400
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(user.id)
+
+
+def test_classify_endpoint_404_for_file_in_wrong_project() -> None:
+    user = _create_user("estimator-3.7b@example.com", "estimator")
+    _login_as(user)
+    project_id, other_project_id = None, None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Classify 404 Project"}
+        ).json()["id"]
+        other_project_id = client.post(
+            "/projects", json={"name": "Classify 404 Other Project"}
+        ).json()["id"]
+        with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+            file_id = client.post(
+                f"/projects/{project_id}/files",
+                files={"file": ("sample.ifc", fh, "application/octet-stream")},
+            ).json()["id"]
+
+        response = client.post(f"/projects/{other_project_id}/files/{file_id}/classify")
+        assert response.status_code == 404
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        if other_project_id is not None:
+            _cleanup_project(other_project_id)
+        _delete_user(user.id)
+
+
+def test_classify_endpoint_requires_estimator_or_admin() -> None:
+    user = _create_user("estimator-3.7c@example.com", "estimator")
+    _login_as(user)
+    project_id = client.post("/projects", json={"name": "Classify 403 Project"}).json()[
+        "id"
+    ]
+    with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+        file_id = client.post(
+            f"/projects/{project_id}/files",
+            files={"file": ("sample.ifc", fh, "application/octet-stream")},
+        ).json()["id"]
+    client.cookies.clear()
+
+    viewer = _create_user("viewer-3.7c@example.com", "viewer")
+    _login_as(viewer)
+    try:
+        response = client.post(f"/projects/{project_id}/files/{file_id}/classify")
+        assert response.status_code == 403
+    finally:
+        client.cookies.clear()
+        _delete_user(viewer.id)
+        _cleanup_project(project_id)
+        _delete_user(user.id)
+
+
+def test_classify_endpoint_enqueues_job_for_extracted_file() -> None:
+    user = _create_user("estimator-3.7d@example.com", "estimator")
+    _login_as(user)
+    project_id = None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Classify 202 Project"}
+        ).json()["id"]
+        with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+            file_id = client.post(
+                f"/projects/{project_id}/files",
+                files={"file": ("sample.ifc", fh, "application/octet-stream")},
+            ).json()["id"]
+
+        db = SessionLocal()
+        ifc_file = db.get(IfcFile, file_id)
+        ifc_file.status = "extracted"
+        db.commit()
+        db.close()
+
+        response = client.post(f"/projects/{project_id}/files/{file_id}/classify")
+        assert response.status_code == 202
+        job_id = response.json()["id"]
+
+        db = SessionLocal()
+        job = db.get(Job, job_id)
+        assert job.type == "classify"
+        assert job.ifc_file_id == file_id
+        db.close()
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(user.id)

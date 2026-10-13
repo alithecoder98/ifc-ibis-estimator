@@ -81,7 +81,16 @@ def process_ifc_file(job_id: int, ifc_file_id: int) -> None:
             )
             db.commit()
 
-        classify_elements(db, all_orm_elements)
+        # Classification is the next 10% (80-90%); fragments upload is the last 10%.
+        def _report_classify_progress(processed: int, classify_total: int) -> None:
+            job.progress = 80 + int(
+                processed / classify_total * 10 if classify_total else 10
+            )
+            db.commit()
+
+        classify_elements(
+            db, all_orm_elements, progress_callback=_report_classify_progress
+        )
         job.progress = 90
         db.commit()
 

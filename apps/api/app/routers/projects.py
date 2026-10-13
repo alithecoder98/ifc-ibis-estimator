@@ -21,6 +21,7 @@ from app.db.models import Classification, Element, IfcFile, Project, Quantity, U
 from app.db.session import get_db
 from app.schemas import IfcFileOut, ProjectCreate, ProjectOut, ProjectUpdate
 from app.storage import download_bytes, upload_fileobj
+from app.workers.classification import reclassify_ifc_file
 from app.workers.extraction import process_ifc_file
 from app.workers.jobs import create_job
 from app.workers.queue import get_queue
@@ -232,3 +233,37 @@ def get_fragments_model(
 
     fragments_bytes = download_bytes(ifc_file.fragments_storage_key)
     return Response(content=fragments_bytes, media_type="application/octet-stream")
+
+
+@router.post(
+    "/{project_id}/files/{file_id}/classify", status_code=status.HTTP_202_ACCEPTED
+)
+def classify_file(
+    project_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator")),
+) -> dict:
+    """Phase 3.7 — re-runs classification for an already-extracted file, e.g. after
+    adding rules or code_list entries. Re-evaluates every element (force=True in
+    app/workers/classification.py), not just ones missing a classification -
+    "latest classification wins" is already the project's convention, so this adds
+    fresher rows rather than deleting the old ones.
+    """
+    ifc_file = db.get(IfcFile, file_id)
+    if ifc_file is None or ifc_file.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="file not found"
+        )
+    if ifc_file.status != "extracted":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"file must be fully extracted before classifying (status: {ifc_file.status})",
+        )
+
+    job = create_job(db, type="classify", project_id=project_id, ifc_file_id=file_id)
+    db.commit()
+
+    get_queue().enqueue(reclassify_ifc_file, job.id, file_id)
+
+    return {"id": job.id}

@@ -25,10 +25,12 @@ from app.db.models import (
     Job,
     Project,
     Quantity,
+    Rule,
     User,
 )
 from app.db.session import SessionLocal
 from app.storage import upload_fileobj
+from app.workers.classification import reclassify_ifc_file
 from app.workers.extraction import process_ifc_file
 from tests.conftest import cleanup_project_cascade
 
@@ -240,6 +242,117 @@ def _delete_code(code_id: int) -> None:
     db.query(CodeList).filter(CodeList.id == code_id).delete()
     db.commit()
     db.close()
+
+
+def test_classify_elements_force_false_skips_already_classified() -> None:
+    project_id, user_id, element_id, code_id = _setup_project_and_element("jev")
+    db = SessionLocal()
+    try:
+        element = db.get(Element, element_id)
+        classify_elements(db, [element])  # engine="jev" by default from the helper
+        db.commit()
+        first_count = (
+            db.query(Classification)
+            .filter(Classification.element_id == element.id)
+            .count()
+        )
+        assert first_count == 1
+
+        classify_elements(db, [element])  # force=False (default) - should skip
+        db.commit()
+        second_count = (
+            db.query(Classification)
+            .filter(Classification.element_id == element.id)
+            .count()
+        )
+        assert second_count == first_count == 1
+    finally:
+        db.close()
+        _delete_code(code_id)
+        cleanup_project_cascade(project_id, user_id)
+
+
+def test_classify_elements_force_true_reclassifies() -> None:
+    project_id, user_id, element_id, code_id = _setup_project_and_element("jev")
+    db = SessionLocal()
+    try:
+        element = db.get(Element, element_id)
+        classify_elements(db, [element])
+        db.commit()
+
+        classify_elements(db, [element], force=True)
+        db.commit()
+
+        count = (
+            db.query(Classification)
+            .filter(Classification.element_id == element.id)
+            .count()
+        )
+        assert count == 2  # a fresh row added alongside the old one, not replacing it
+    finally:
+        db.close()
+        _delete_code(code_id)
+        cleanup_project_cascade(project_id, user_id)
+
+
+def test_classify_elements_reports_progress() -> None:
+    project_id, user_id, element_id, code_id = _setup_project_and_element("jev")
+    db = SessionLocal()
+    try:
+        element = db.get(Element, element_id)
+        calls = []
+        classify_elements(
+            db,
+            [element],
+            progress_callback=lambda done, total: calls.append((done, total)),
+        )
+        db.commit()
+        assert calls == [(1, 1)]
+    finally:
+        db.close()
+        _delete_code(code_id)
+        cleanup_project_cascade(project_id, user_id)
+
+
+def test_classify_elements_progress_reports_per_rule_matched_element_too() -> None:
+    project_id, user_id, element_id, code_id = _setup_project_and_element("jev")
+    db = SessionLocal()
+    try:
+        rule = Rule(
+            conditions=[{"field": "ifc_class", "operator": "==", "value": "IfcWall"}],
+            result_ibis_code="99.99",
+            result_internal_element="Rule matched",
+            priority=10,
+            status="active",
+        )
+        db.add(rule)
+        db.commit()
+        rule_id = rule.id
+
+        element = db.get(Element, element_id)
+        calls = []
+        classify_elements(
+            db,
+            [element],
+            progress_callback=lambda done, total: calls.append((done, total)),
+        )
+        db.commit()
+        assert calls == [(1, 1)]
+
+        classification = (
+            db.query(Classification)
+            .filter(Classification.element_id == element.id)
+            .one()
+        )
+        assert classification.source == "rule"
+    finally:
+        db.close()
+        db2 = SessionLocal()
+        db2.query(Rule).filter(Rule.id == rule_id).delete()
+        db2.commit()
+        db2.close()
+        _delete_code(code_id)
+        cleanup_project_cascade(project_id, user_id)
 
 
 def test_merge_flags_dedupes_preserving_order() -> None:
@@ -469,6 +582,77 @@ def test_process_ifc_file_creates_classifications_grouped_correctly() -> None:
         # confidence score - not just a threshold comparison.
         assert all("code_none" in c.flags for c in classifications)
         assert all(c.status == "needs_review" for c in classifications)
+    finally:
+        db.close()
+        cleanup_project_cascade(project_id, user_id)
+
+
+def test_reclassify_ifc_file_end_to_end_adds_fresh_rows() -> None:
+    """Phase 3.7's "Done when": upload -> extraction -> classification runs end to
+    end on a fixture (covered above, unchanged since P.2) - this is the new part:
+    re-running classification afterward via app/workers/classification.py's
+    reclassify_ifc_file, which force=True's every element regardless of its
+    existing row.
+    """
+    db = SessionLocal()
+    user = User(email="classify-3.7@example.com", password_hash="x", role="estimator")
+    db.add(user)
+    db.flush()
+    project = Project(name="Reclassify Worker Test", created_by=user.id)
+    db.add(project)
+    db.commit()
+    project_id, user_id = project.id, user.id
+    try:
+        fixture_path = FIXTURES_DIR / "real_sample.ifc"
+        storage_key = "tests/3.7/real_sample.ifc"
+        with open(fixture_path, "rb") as fh:
+            upload_fileobj(fh, storage_key)
+
+        ifc_file = IfcFile(
+            project_id=project.id,
+            filename="real_sample.ifc",
+            storage_key=storage_key,
+            ifc_schema="IFC2X3",
+            size_bytes=fixture_path.stat().st_size,
+            uploaded_by=user.id,
+            status="uploaded",
+        )
+        db.add(ifc_file)
+        db.flush()
+        extract_job = Job(
+            type="extract", project_id=project.id, ifc_file_id=ifc_file.id
+        )
+        db.add(extract_job)
+        db.commit()
+
+        process_ifc_file(extract_job.id, ifc_file.id)
+
+        elements = db.query(Element).filter(Element.ifc_file_id == ifc_file.id).all()
+        first_count = (
+            db.query(Classification)
+            .filter(Classification.element_id.in_([e.id for e in elements]))
+            .count()
+        )
+        assert first_count == 13
+
+        reclassify_job = Job(
+            type="classify", project_id=project.id, ifc_file_id=ifc_file.id
+        )
+        db.add(reclassify_job)
+        db.commit()
+
+        reclassify_ifc_file(reclassify_job.id, ifc_file.id)
+
+        db.refresh(reclassify_job)
+        assert reclassify_job.status == "done"
+        assert reclassify_job.progress == 100
+
+        second_count = (
+            db.query(Classification)
+            .filter(Classification.element_id.in_([e.id for e in elements]))
+            .count()
+        )
+        assert second_count == 26  # every element re-classified, fresh rows added
     finally:
         db.close()
         cleanup_project_cascade(project_id, user_id)

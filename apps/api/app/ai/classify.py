@@ -5,7 +5,19 @@ combined by Phase 3.6's compute_confidence(). Engine calls are one per unique
 `group_hash`, not per element, since elements sharing a group are, by construction,
 the same type of thing (app/ifc/profile.py) - njderidder is paying for jev API usage
 out of pocket, and even the free local LLM costs real wall-clock time per call.
+
+Phase 3.7: commits after each rule-matched element and each AI-engine group (not one
+transaction for the whole call), reporting progress via `progress_callback` after
+each - both so a crash loses at most the one batch in flight, and so
+`force=False` (the default; the worker's own upload path never wants to silently
+redo work) can skip elements a previous, interrupted run of *this same call* already
+finished. `force=True` (the explicit re-run endpoint's purpose) reprocesses
+everything regardless - "latest classification wins" is already the project's
+convention (see app/ai/calibrate.py's gather_scored_rows), so re-run doesn't delete
+old rows, it adds fresher ones alongside them.
 """
+
+from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
@@ -31,7 +43,12 @@ def _merge_flags(
     return merged or None
 
 
-def classify_elements(db: Session, elements: list[Element]) -> None:
+def classify_elements(
+    db: Session,
+    elements: list[Element],
+    force: bool = False,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> None:
     """Rules are evaluated per element (not per group_hash like the AI engines below
     - group_hash excludes storey, so a storey_keyword rule can still split a group).
     Elements matching an active rule skip the AI engines entirely. Everything else
@@ -45,6 +62,24 @@ def classify_elements(db: Session, elements: list[Element]) -> None:
     """
     if not elements:
         return
+
+    if not force:
+        already_classified = {
+            row[0]
+            for row in db.query(Classification.element_id)
+            .filter(Classification.element_id.in_([e.id for e in elements]))
+            .distinct()
+        }
+        elements = [e for e in elements if e.id not in already_classified]
+        if not elements:
+            return
+
+    total = len(elements)
+    processed = 0
+
+    def _report() -> None:
+        if progress_callback is not None:
+            progress_callback(processed, total)
 
     active_rules = db.query(Rule).filter(Rule.status == "active").all()
 
@@ -66,6 +101,9 @@ def classify_elements(db: Session, elements: list[Element]) -> None:
                 source="rule",
             )
         )
+        db.commit()
+        processed += 1
+        _report()
 
     if not remaining:
         return
@@ -182,3 +220,7 @@ def classify_elements(db: Session, elements: list[Element]) -> None:
                         agreement=agreement,
                     )
                 )
+
+        db.commit()
+        processed += len(group_elements)
+        _report()
