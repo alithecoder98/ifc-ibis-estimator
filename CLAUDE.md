@@ -128,6 +128,11 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
   written, instead of falling back to `npm`/`pip`.
 - 2026-10-12 — Local/staging S3-compatible storage is MinIO via `docker-compose.yml`
   (self-hosted, same API as real S3) until a real EU provider is chosen for production.
+- 2026-10-13 — Added `AUTH_DISABLED` dev-mode toggle (`apps/api/app/core/deps.py`) so
+  local testing doesn't need a login each time. Off by default, guarded so it can't
+  start outside `ENVIRONMENT=development`, tests always run with real auth regardless
+  of local `.env`. **Must stay off for anything beyond local dev** — this is a
+  convenience toggle, not a decision to drop RBAC from the MVP.
 
 ## Still open (don't block the engineering work, but block specific later sub-phases)
 
@@ -162,5 +167,11 @@ confirmed in the Garage bucket → job completed via the real worker.
 (`apps/api/tests/fixtures/sample.ifc`, built via ifcopenshell's own API, not downloaded)
 is enough. Only **2.7** (extraction comparison report against `data/ground_truth.csv`)
 and later QA/export phases are actually blocked on client data — see "Still open" below.
+**Also this session:** added the `AUTH_DISABLED` dev-mode login bypass (own commit, not
+part of 2.1) — see decision log above. `/` now redirects to `/projects` instead of
+`/login` as a side effect (the protected layout's own 401-redirect still sends an
+unauthenticated visitor to `/login` when auth is enabled).
 **Next up:** sub-phase 2.2 — Element extraction (walls, slabs, roofs, etc. from IFC into
-the `elements` table).
+the `elements` table). The current `sample.ifc` fixture (one wall) should probably grow
+to cover more element types before or during 2.2 so extraction logic gets exercised
+meaningfully.
