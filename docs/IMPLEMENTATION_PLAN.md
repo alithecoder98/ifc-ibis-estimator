@@ -308,9 +308,27 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       got `source="rule", confidence=1.0, auto_accepted` and skipped jev entirely,
       while a 4th wall with different material and everything else correctly fell
       through to jev. 94/94 pytest, run twice, no leaks.
-- [ ] **3.3 Retrieval** — shortlist top-15 codes within family; example memory top-5 similar approved
+- [x] **3.3 Retrieval** — shortlist top-15 codes within family; example memory top-5 similar approved
       elements; caching per group hash.
       Done when: tests with seeded examples return expected neighbours.
+      ✅ 2026-10-13 — `app/ai/retrieval.py`: `guess_family()` maps each supported
+      `ifc_class` to a `code_list` family (`IfcSlab` disambiguated via
+      `predefined_type == "ROOF"`), `shortlist_codes()` (family-filtered, falls back
+      to all families when fewer than the requested limit come back),
+      `similar_examples()` (top-5 from `example_memory`), and
+      `shortlist_and_examples()` wrapping both behind an in-process cache keyed by
+      `group_hash` — the same "one lookup per group" reasoning `classify.py` already
+      applies to jev, since `group_hash` is deterministic per group but the raw
+      `profile_text` isn't (quantities vary per element). **Not wired into
+      `classify.py` yet** — its output (candidates + examples) has no consumer until
+      3.4's LLM prompt exists. Found and fixed while writing the live-verification
+      script, not the library itself: `example_memory.project_id` is `NOT NULL` with
+      an FK to `projects`, which `tests/conftest.py`'s shared
+      `cleanup_project_cascade()` never deleted — the exact bug class CLAUDE.md
+      already warns about for any new FK onto `projects`/`elements`, now fixed in
+      that one shared function. Verified live against real Ollama/pgvector, not just
+      `FakeEmbedder`: real shortlist, real fallback-to-all-families, real
+      similar-example ranking, real cache hit. 100/100 pytest, run twice, no leaks.
 - [ ] **3.4 LLM classifier** — `LLMClient` interface + provider implementation; prompt template
       (profile + candidates + examples + rules summary); strict JSON schema
       {code, internal_element, reasoning, self_score, flags}; Pydantic validation; retries; batching

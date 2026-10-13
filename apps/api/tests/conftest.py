@@ -10,7 +10,16 @@ import os
 import pytest
 
 from app.core.config import get_settings
-from app.db.models import Classification, Element, IfcFile, Job, Project, Quantity, User
+from app.db.models import (
+    Classification,
+    Element,
+    ExampleMemory,
+    IfcFile,
+    Job,
+    Project,
+    Quantity,
+    User,
+)
 from app.db.session import SessionLocal
 
 
@@ -27,9 +36,9 @@ def cleanup_project_cascade(project_id: int, user_id: int | None = None) -> None
     project -> user.
 
     One shared helper instead of a `_cleanup()` copy per test file — every new table
-    that FKs onto `elements` (quantities in 2.3, classifications in Phase P) has
-    broken every existing copy of this logic at least once. Update this one function
-    when that happens again, not four.
+    that FKs onto `elements` (quantities in 2.3, classifications in Phase P) or
+    straight onto `projects` (example_memory, added in 3.3's tests) has broken this
+    logic at least once. Update this one function when that happens again, not four.
     """
     db = SessionLocal()
     try:
@@ -58,6 +67,9 @@ def cleanup_project_cascade(project_id: int, user_id: int | None = None) -> None
                 synchronize_session=False
             )
         db.query(Job).filter(Job.project_id == project_id).delete(
+            synchronize_session=False
+        )
+        db.query(ExampleMemory).filter(ExampleMemory.project_id == project_id).delete(
             synchronize_session=False
         )
         db.query(Project).filter(Project.id == project_id).delete()

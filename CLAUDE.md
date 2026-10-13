@@ -175,7 +175,7 @@ njderidder's reply. No new client commitment has arrived — this is a deliberat
 to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
 Phase P and the decision log above for the full history.
 
-**Phase:** 3 — AI classification engine, **3.1–3.2 done**. Phase 2 (2.1–2.7) complete.
+**Phase:** 3 — AI classification engine, **3.1–3.3 done**. Phase 2 (2.1–2.7) complete.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -310,7 +310,22 @@ existed — the first live test against them silently ran the *old* code (404 on
 new route, then 13/13 elements routed to jev with zero rule matches even after adding
 a real rule) until both were restarted. Worth remembering: a 200 OK from a long-running
 dev server doesn't confirm it's running today's code.
-**Next up:** Phase 3.3 — retrieval (`app/ai/retrieval.py`: shortlist top-15 codes by
-family, top-5 similar example-memory elements, caching per `group_hash`). No open
-decisions block it; needs real `code_list`/`example_memory` rows to be meaningfully
-testable beyond unit tests with fakes, same self-tested-only caveat as 3.1.
+**Also this session:** 3.3 (retrieval) done. `app/ai/retrieval.py`: `guess_family()`
+(ifc_class → code_list family, `IfcSlab` disambiguated via `predefined_type`),
+`shortlist_codes()` (family-filtered, falls back to all families if too few),
+`similar_examples()` (top-5 from `example_memory`), both wrapped in
+`shortlist_and_examples()` with an in-process cache keyed by `group_hash` — same
+"one lookup per group" reasoning as jev, since `group_hash` is deterministic per
+group but `profile_text` isn't (quantities vary per element). **Not wired into
+`classify.py` yet** — no consumer for its output (candidates + examples) until 3.4's
+LLM prompt exists. **Another FK-onto-`projects` cleanup gap found and fixed:**
+`example_memory.project_id` is `NOT NULL`, and `tests/conftest.py`'s shared
+`cleanup_project_cascade()` never deleted it — exactly the bug class this file
+already warns about, now fixed in the one shared function instead of a workaround in
+this sub-phase's own tests. Verified live against real Ollama/pgvector (not just
+`FakeEmbedder`): real shortlist, real family-fallback, real example ranking, real
+cache hit. 100/100 pytest, run twice, no leaks.
+**Next up:** Phase 3.4 — LLM classifier (`LLMClient` interface + the decided
+qwen2.5:7b-instruct provider, prompt template combining profile + retrieval's
+candidates/examples + a rules summary, strict JSON schema output, Pydantic
+validation). No open decisions block it — the provider was decided in 3.1.
