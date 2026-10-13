@@ -85,9 +85,15 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       depends on this.
 
 ## Phase 2 — IFC processing engine (weeks 3–4)
-- [ ] **2.1 Projects + upload API** — CRUD projects; chunked IFC upload to S3-compatible storage;
+- [x] **2.1 Projects + upload API** — CRUD projects; chunked IFC upload to S3-compatible storage;
       schema validation with IfcOpenShell; create processing job.
       Done when: upload of fixture file creates ifc_files row + job; corrupt file returns clear error.
+      ✅ 2026-10-13 — server-proxied upload (not chunked/presigned — no upload UI exists
+      yet to pair that with, see Phase 4.2). Verified both via pytest (23/23) and live
+      against the real stack: real login → real upload → file confirmed present in the
+      Garage bucket (`garage bucket info`) → job verified done/progress 100 via the real
+      worker. Corrupt file → clean 400, not a 500. The processing job is a stub for now
+      (marks done, no real parsing) — Phase 2.2 fills in the actual extraction.
 - [ ] **2.2 Element extraction** — walls, slabs, roofs, footings, columns, beams, stairs, railings,
       doors, windows, coverings, proxies: GlobalId, class, predefined type, name, object type,
       storey, materials + layer sets (thickness), all Psets, IsExternal/LoadBearing.

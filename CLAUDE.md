@@ -129,31 +129,38 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 - 2026-10-12 — Local/staging S3-compatible storage is MinIO via `docker-compose.yml`
   (self-hosted, same API as real S3) until a real EU provider is chosen for production.
 
-## Still open (don't block Phase 1, but block later phases)
+## Still open (don't block the engineering work, but block specific later sub-phases)
 
 - LLM provider for `LLMClient` (needed before Phase 3.4)
 - jev API docs/access (Phase 3.5 stubs until then)
-- Staging/production hosting target (Phase 1.7 CI step explicitly asks before writing
-  deploy steps; Phase 9)
-- Client's real code lists, sample IFC files, ground truth, Excel template (block Phase 0
-  discovery tooling and later QA/export phases, not Phase 1)
+- Staging/production hosting target (Phase 1.7's deploy step; Phase 9)
+- Client's real code lists, sample IFC files, ground truth, Excel template — blocks
+  Phase 0 discovery tooling, Phase 2.1's real code-list import (2.1 itself used a
+  generated test fixture, not client data), Phase 2.7 (extraction comparison report),
+  and later QA/export phases. Does **not** block Phase 2.2–2.6's engineering work —
+  those use test fixtures.
 
 ## Current status
 
-**Phase:** 1 — Foundation, effectively done except the staging deploy step.
-**Last session:** 2026-10-13 — completed sub-phases 1.1–1.6 in full, and 1.7's CI +
-Dockerfiles (ticked box withheld — see below). All branches merged to `main`, all
-checks green. Known Windows quirks: `rq worker` needs `--worker-class
+**Phase:** 2 — IFC processing engine, started (sub-phase 2.1 done).
+**Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
+target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
+1.7). Known Windows quirks worth remembering: `rq worker` needs `--worker-class
 rq.worker.SimpleWorker` locally (no `os.fork()` on Windows — containers are Linux, so
 Dockerfiles don't need this); this shadcn/ui install is on Base UI primitives, not Radix
 (`render` prop, not `asChild`); git's autocrlf here needs `endOfLine: "auto"` in
-apps/web/.prettierrc.json or every fresh checkout flags as unformatted.
-**1.7 status:** CI workflow (`.github/workflows/ci.yml`) and all three Dockerfiles
-(`apps/api/Dockerfile`, `apps/api/Dockerfile.worker`, `apps/web/Dockerfile`) are done and
-verified — built and run-tested against the real docker-compose stack, not just
-"compiles". The staging-deploy half of 1.7 is deliberately not built: no server/provider
-target exists yet, and the plan itself says to ask before writing that step. Box in
-docs/IMPLEMENTATION_PLAN.md stays unchecked until a target is picked.
-**Next up:** a hosting decision unblocks the rest of 1.7, then Phase 2 (IFC processing
-engine) starts — that needs client sample IFC files, code lists, and ground truth (see
-"Still open" below), none of which have arrived yet.
+apps/web/.prettierrc.json or every fresh checkout flags as unformatted; Git Bash mangles
+`/garage` paths in `docker compose exec` — prefix with `MSYS_NO_PATHCONV=1`.
+**Last session:** 2026-10-13 — sub-phase 2.1 (projects CRUD + IFC upload API) done:
+`POST/GET /projects`, `POST /projects/{id}/files` (server-proxied multipart upload,
+validates with ifcopenshell, stores in Garage, creates an `ifc_files` row and a stub
+`extract` job). Provisioned the real Garage bucket + access key (deferred from 1.1).
+Verified live against the real stack, not just pytest: real login → real upload → file
+confirmed in the Garage bucket → job completed via the real worker.
+**Correction to an earlier assumption:** Phase 2's engineering sub-phases (2.1–2.6) do
+**not** need the client's real IFC files/code lists — a generated test fixture
+(`apps/api/tests/fixtures/sample.ifc`, built via ifcopenshell's own API, not downloaded)
+is enough. Only **2.7** (extraction comparison report against `data/ground_truth.csv`)
+and later QA/export phases are actually blocked on client data — see "Still open" below.
+**Next up:** sub-phase 2.2 — Element extraction (walls, slabs, roofs, etc. from IFC into
+the `elements` table).
