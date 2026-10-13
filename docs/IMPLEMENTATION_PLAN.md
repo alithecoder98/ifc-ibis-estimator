@@ -94,10 +94,17 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       Garage bucket (`garage bucket info`) → job verified done/progress 100 via the real
       worker. Corrupt file → clean 400, not a 500. The processing job is a stub for now
       (marks done, no real parsing) — Phase 2.2 fills in the actual extraction.
-- [ ] **2.2 Element extraction** — walls, slabs, roofs, footings, columns, beams, stairs, railings,
+- [x] **2.2 Element extraction** — walls, slabs, roofs, footings, columns, beams, stairs, railings,
       doors, windows, coverings, proxies: GlobalId, class, predefined type, name, object type,
       storey, materials + layer sets (thickness), all Psets, IsExternal/LoadBearing.
       Done when: fixture tests assert counts and fields; large file processes without memory blow-up.
+      ✅ 2026-10-13 — verified via pytest (29/29) AND live against the real stack (both
+      fixtures, through the actual upload → worker → DB pipeline, not just unit tests).
+      No geometry is touched, so memory use should scale fine, but this is **not proven
+      at scale** — biggest fixture tested is 92KB/13 elements, nowhere near the 100MB
+      target. Revisit once a large real file is available. Also surfaced and fixed a
+      process-hygiene issue unrelated to the extraction code itself (stray `rq worker`
+      processes accumulating across the session) — see commit `b40f795`.
 - [ ] **2.3 Quantities from Qto** — read standard Qto sets; normalise to SI; source = qto.
       Done when: wall/slab/footing quantities match expected fixture values.
 - [ ] **2.4 Geometry fallback** — ifcopenshell.geom for area/volume/length when Qto missing;
