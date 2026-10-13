@@ -13,6 +13,14 @@ from app.routers.projects import router as projects_router
 
 configure_logging()
 
+_settings = get_settings()
+if _settings.auth_disabled and _settings.environment != "development":
+    raise RuntimeError(
+        "AUTH_DISABLED=true outside ENVIRONMENT=development — refusing to start. "
+        "This bypass is for local dev convenience only and must never run in "
+        "staging/production."
+    )
+
 app = FastAPI(title="IFC-to-IBIS Estimator API")
 
 app.add_middleware(

@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-every-environment-min-32-bytes"
     jwt_expires_minutes: int = 60
 
+    # Dev-only convenience: when true, every request is treated as a fixed admin user,
+    # no login needed. Guarded in app/main.py so the app refuses to start with this on
+    # outside "development" - never let this reach staging/production.
+    auth_disabled: bool = False
+
     llm_api_key: str = ""
     jev_api_url: str = ""
     jev_api_key: str = ""

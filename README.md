@@ -64,6 +64,14 @@ pnpm dev
 API: http://localhost:8000 · Frontend: http://localhost:3000 · Garage S3 API:
 http://localhost:3900 (no web console — it's API-only)
 
+### Skipping login during local dev
+
+Set `AUTH_DISABLED=true` in `apps/api/.env` and restart the API — every request then
+becomes a fixed `dev@local.test` admin user, no login screen, no cookie needed. It's
+guarded: the app refuses to start if this is `true` and `ENVIRONMENT` isn't
+`development`, so it can't accidentally reach staging/production. Tests always run
+with real auth regardless of this setting (see `apps/api/tests/conftest.py`).
+
 ## Tests
 
 ```bash
