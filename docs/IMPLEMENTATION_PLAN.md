@@ -74,6 +74,15 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       ruff/black clean on api.
 - [ ] **1.7 CI + staging** — GitHub Actions: lint, test, build images; deploy to staging.
       Done when: a merge to main updates staging.
+      ⏸️ 2026-10-13 — CI done and verified: `.github/workflows/ci.yml` runs ruff/black/
+      pytest (api, against real Postgres+Redis service containers), eslint/build (web),
+      then builds all three Docker images. All three images were also run-tested
+      locally against the real docker-compose stack (api `/health` ok, worker processed
+      a real job end to end, web served `/`→`/login`), not just "docker build" succeeding.
+      **Not done:** the actual deploy-to-staging step — no server/provider target exists
+      yet (user chose to skip rather than guess; plan itself says ask first). Box stays
+      unchecked until that exists; revisit here or in Phase 9. Nothing else in Phase 1
+      depends on this.
 
 ## Phase 2 — IFC processing engine (weeks 3–4)
 - [ ] **2.1 Projects + upload API** — CRUD projects; chunked IFC upload to S3-compatible storage;

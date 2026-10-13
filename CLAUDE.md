@@ -140,13 +140,20 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 
 ## Current status
 
-**Phase:** 1 — Foundation, in progress.
-**Last session:** 2026-10-13 — completed sub-phases 1.1–1.6: monorepo scaffold, backend
-skeleton, database schema (all 12 tables), worker + jobs, auth + roles, frontend
-skeleton. All branches merged to `main`, all checks green. Known Windows quirk: `rq
-worker` needs `--worker-class rq.worker.SimpleWorker` (no `os.fork()` on Windows) — in
-README. This shadcn/ui install is on Base UI primitives, not Radix (`render` prop, not
-`asChild`) — relevant for every future shadcn component added.
-**Next up:** sub-phase 1.7 — CI and staging (GitHub Actions lint/test/build; Dockerfiles
-for api/worker/web; the actual deploy-to-staging step needs a server/provider target
-from you first).
+**Phase:** 1 — Foundation, effectively done except the staging deploy step.
+**Last session:** 2026-10-13 — completed sub-phases 1.1–1.6 in full, and 1.7's CI +
+Dockerfiles (ticked box withheld — see below). All branches merged to `main`, all
+checks green. Known Windows quirks: `rq worker` needs `--worker-class
+rq.worker.SimpleWorker` locally (no `os.fork()` on Windows — containers are Linux, so
+Dockerfiles don't need this); this shadcn/ui install is on Base UI primitives, not Radix
+(`render` prop, not `asChild`); git's autocrlf here needs `endOfLine: "auto"` in
+apps/web/.prettierrc.json or every fresh checkout flags as unformatted.
+**1.7 status:** CI workflow (`.github/workflows/ci.yml`) and all three Dockerfiles
+(`apps/api/Dockerfile`, `apps/api/Dockerfile.worker`, `apps/web/Dockerfile`) are done and
+verified — built and run-tested against the real docker-compose stack, not just
+"compiles". The staging-deploy half of 1.7 is deliberately not built: no server/provider
+target exists yet, and the plan itself says to ask before writing that step. Box in
+docs/IMPLEMENTATION_PLAN.md stays unchecked until a target is picked.
+**Next up:** a hosting decision unblocks the rest of 1.7, then Phase 2 (IFC processing
+engine) starts — that needs client sample IFC files, code lists, and ground truth (see
+"Still open" below), none of which have arrived yet.
