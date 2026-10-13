@@ -65,11 +65,23 @@ This is exactly step 1 of his 4-step ask.
       disproportionately into the 1-2 day budget). Verified live: a real upload
       produced a real downloadable CSV with real quantities and an honest "jev not yet
       configured" reasoning column per row, not fabricated data.
-- [ ] **P.4 Accuracy comparison** — script comparing jev's suggested codes against the
+- [x] **P.4 Accuracy comparison** — script comparing jev's suggested codes against the
       manually-verified reference calculations, once provided. Scoped down from
       2.7/3.8's full evaluation harness — just a % match and a list of mismatches,
       not cost tracking or per-family breakdowns.
       Done when: produces one number (accuracy %) + a mismatch list from real data.
+      ✅ 2026-10-13 — `app/ai/accuracy.py` (`compare_accuracy()` + `load_ground_truth()`,
+      pure functions over the DB, same pattern as `app/ai/export.py`) and the thin CLI
+      `scripts/compare_accuracy.py` (`uv run python scripts/compare_accuracy.py
+      <project_id> <ground_truth.csv>`), plus `scripts/example_ground_truth.csv` as a
+      format template. Ground-truth CSV is a minimal 2-column `global_id,
+      expected_ibis_code`. **Self-tested only** — njderidder's real reference
+      calculations still haven't arrived, so `tests/test_accuracy.py` proves the
+      comparison/mismatch logic is correct against our own fixture (jev's stub always
+      returns `None`, so the test crafts a ground truth by hand to get one controlled
+      match + one controlled mismatch) — this is not a real accuracy number. Verified
+      live too: a real upload's real classifications ran through the real CLI against
+      a hand-built ground-truth CSV and reported correct counts/mismatches.
 
 **Explicitly not in scope for Phase P**, even though it exists in this repo already:
 auth/RBAC enforcement, Docker/CI hardening, 3D viewer, rules engine + embeddings

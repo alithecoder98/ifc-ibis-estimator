@@ -201,26 +201,36 @@ grep existing `_cleanup()` helpers for the table it references.
 types, plus a real public-domain sample with authoring-tool messiness). Only **2.7**
 (extraction comparison report against `data/ground_truth.csv`) and later QA/export
 phases are actually blocked on client data — see "Still open" below.
-**Last session:** 2026-10-13 — Phase P.1–P.3 (jev client, classification, minimal CSV
-export) done: `app/ai/jev.py` (`StubJevClient` until real credentials exist — the real
-`JevClient` deliberately raises rather than guessing at an undocumented API contract),
-`app/ai/classify.py` (one jev call per unique `group_hash`, one `Classification` row
-per element, routes everything to `needs_review` since stub confidence is always 0.0),
-`app/ai/export.py` + `GET /projects/{id}/export` (a downloadable CSV — chosen over
-Excel/a frontend page to stay inside the 1-2 day budget). All wired into the existing
-extraction pipeline as its final step. Verified via pytest (60/60) and live: a real
-upload of `real_sample.ifc` produced a real CSV with real quantities and an honest
-"jev not yet configured" reasoning per row — not fabricated data.
+**Last session:** 2026-10-13 — Phase P now fully done (P.1–P.4): jev client,
+classification, minimal CSV export, and accuracy comparison. `app/ai/jev.py`
+(`StubJevClient` until real credentials exist — the real `JevClient` deliberately
+raises rather than guessing at an undocumented API contract), `app/ai/classify.py`
+(one jev call per unique `group_hash`, one `Classification` row per element, routes
+everything to `needs_review` since stub confidence is always 0.0), `app/ai/export.py`
++ `GET /projects/{id}/export` (a downloadable CSV — chosen over Excel/a frontend page
+to stay inside the 1-2 day budget). All wired into the existing extraction pipeline as
+its final step. Verified via pytest (60/60) and live: a real upload of
+`real_sample.ifc` produced a real CSV with real quantities and an honest "jev not yet
+configured" reasoning per row — not fabricated data.
 **A real recurring bug, fixed properly this time:** the new `classifications` table
 broke 4 separate test files' local cleanup copies (same class of bug as 2.3/2.4).
 Instead of patching each again, extracted one shared `cleanup_project_cascade()` into
 `tests/conftest.py`, used by all 5 files now — the next new FK-bearing table updates
 one function, not N.
+**P.4 (accuracy comparison)** — `app/ai/accuracy.py` (`compare_accuracy()` +
+`load_ground_truth()`) and `scripts/compare_accuracy.py` (CLI:
+`uv run python scripts/compare_accuracy.py <project_id> <ground_truth.csv>`), with
+`scripts/example_ground_truth.csv` as the format template. Built and tested
+**self-tested only, by explicit decision** — njderidder's real reference calculations
+still haven't arrived, so `tests/test_accuracy.py` proves the comparison/mismatch
+logic against our own fixture (jev's stub always returns `None`, so the test crafts a
+controlled ground truth by hand), not a real accuracy number. Verified live too: a
+real upload's real classifications ran through the real CLI. 63/63 pytest, run twice
+to confirm no leaks.
 Also recently: sub-phases 2.1–2.5 (full extraction pipeline); the `AUTH_DISABLED`
 dev-mode login bypass; the Phase P scope realignment itself (see decision log above).
 **Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB).
-**Blocked:** P.4 (accuracy comparison) needs the manually-verified reference
-calculations njderidder said he's gathering — not received yet.
-**Next up:** nothing buildable right now without new input. Either njderidder's real
-jev credentials (making P.1/P.2 fully real instead of stubbed) or his reference files
-(unblocking P.4) — whichever arrives first.
+**Next up:** nothing buildable right now without new input — Phase P is fully done.
+Either njderidder's real jev credentials (making P.1/P.2 fully real instead of
+stubbed) or his reference files (making P.4 a real measurement instead of a
+self-test) — whichever arrives first.
