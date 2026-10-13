@@ -47,8 +47,9 @@ Goal: automate most of that mapping while keeping a human in control of anything
   chunked upload flow — decided in 1.1, see below).
 - **Auth** — email/password, argon2 hashing, JWT in an httpOnly cookie, roles `admin` /
   `estimator` / `viewer`.
-- **AI** — `Embedder` and `LLMClient` interfaces behind a provider implementation
-  (provider TBD — needed before Phase 3, not Phase 1); a `JevClient` adapter, stubbed
+- **AI** — `Embedder` and `LLMClient` interfaces behind local/open-source models served
+  by Ollama (decided 2026-10-13: bge-m3 for embeddings, qwen2.5:7b-instruct for the LLM
+  — see decision log); a `JevClient` adapter, stubbed
   until jev API docs/access are available.
 - **3D viewer** — That Open Engine (`@thatopen/components`), fragments converted from IFC
   for fast loading.
@@ -143,10 +144,20 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
   correct but was built ahead of what's actually being asked for right now — paused,
   not wasted, resumes only if the client commits. Full context:
   `~/.claude/projects/e--FIVERR-DCC/memory/client_brief_and_context.md`.
+- 2026-10-13 — **AI provider decided: local/open-source models via Ollama, not a paid
+  API.** User has a local RTX 2060 Super (8GB VRAM) and explicitly chose self-hosted
+  over OpenAI/Anthropic+embeddings/anything paid — no per-call cost, no client data
+  leaving the machine. Embeddings: `bge-m3` (strong multilingual/Dutch support, 1024
+  dims). LLM: `qwen2.5:7b-instruct` (fits comfortably in 8GB VRAM with headroom,
+  reliable structured-JSON output, good Dutch quality) over a smaller/faster model or
+  a bigger one needing more VRAM than this machine reliably has free. Served via a new
+  `ollama` `docker-compose.yml` service with GPU passthrough — confirmed working for
+  real (100% GPU offload per `ollama ps`, ~62 tok/s once warm, correct real LLM output
+  and real pgvector similarity search, not mocked). `EMBEDDING_DIM` changed from the
+  OpenAI-shaped placeholder (1536) to bge-m3's real 1024.
 
 ## Still open (don't block the engineering work, but block specific later sub-phases)
 
-- LLM provider for `LLMClient` (needed before Phase 3.4)
 - jev API docs/access (Phase 3.5 stubs until then)
 - Staging/production hosting target (Phase 1.7's deploy step; Phase 9)
 - Client's real code lists, sample IFC files, ground truth, Excel template — blocks
@@ -164,8 +175,7 @@ njderidder's reply. No new client commitment has arrived — this is a deliberat
 to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
 Phase P and the decision log above for the full history.
 
-**Phase:** 2 — IFC processing engine, **all of 2.1–2.7 done**. Phase 2 complete; next
-is Phase 3 (AI classification engine).
+**Phase:** 3 — AI classification engine, **3.1 done**. Phase 2 (2.1–2.7) complete.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -179,6 +189,21 @@ unformatted; Git Bash mangles `/garage` paths in `docker compose exec` — prefi
 `LENGTHUNIT` in IFC, not derived from it — always get each unit type's scale
 separately via `ifcopenshell.util.unit.calculate_unit_scale(file, unit_type)`, never
 assume area = length_scale².
+**Docker Desktop's WSL2 virtual disk doesn't shrink on its own.** `docker system
+prune`/`image prune`/`builder prune` free space *inside* Docker's accounting, but the
+host-side `.vhdx` file (`%LOCALAPPDATA%\Docker\wsl\disk\docker_data.vhdx`) stays the
+same size until compacted — on this machine it grew to 25GB and ran C: down to 0.29GB
+free mid-Ollama-pull. Fix: stop Docker Desktop, `wsl --shutdown`, then in an
+**elevated** PowerShell: `diskpart` → `select vdisk file="<path>"` → `attach vdisk
+readonly` → `compact vdisk` → `detach vdisk` → `exit`. Needs real admin rights — not
+scriptable from a non-elevated session.
+**A forced Docker Desktop/WSL restart leaves healthy-looking containers with stale
+port-forwarding.** After the vhdx compaction above, `docker compose ps` reported every
+container healthy but Postgres/Garage connections failed with
+"connection closed"/`ConnectionClosedError` — the container itself was fine, only the
+Windows-side port proxy was stale. Fix: `docker compose restart <service>` on the
+affected ones (not full `docker compose up`, not a Docker Desktop restart) immediately
+clears it.
 **Process hygiene (bit twice already):** killing background dev processes by port
 (`Get-NetTCPConnection`) only catches the API/web servers — `rq worker` doesn't bind a
 port, so that pattern never touches it. To actually kill a worker: find it via
@@ -258,7 +283,16 @@ not a real coverage number. **A real bug caught by the live smoke test, not pyte
 coerce that to `None` and raise instead — fixed in `load_ground_truth()` before merge.
 72/72 pytest, run twice, no leaks.
 **Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB).
-**Next up:** Phase 3 — AI classification engine (3.1 code list import + embeddings).
-Needs a decision on the `Embedder`/`LLMClient` provider first (see "Still open")
-before 3.1/3.4 can be built for real — flag that before coding rather than guessing a
-provider.
+**This session:** 3.1 (code list import + embeddings) done — see the 2026-10-13 AI
+provider decision above and `docs/IMPLEMENTATION_PLAN.md`'s 3.1 entry for full detail.
+Highlights: `docker-compose.yml`'s new `ollama` service (GPU passthrough, confirmed
+working for real on the dev RTX 2060 Super); `EMBEDDING_DIM` 1536→1024 for bge-m3;
+`app/ai/embedder.py`, `app/ai/codes.py`, `app/routers/codes.py`
+(`POST /codes/import`, `GET /codes`, `GET /codes/search`). Verified live against the
+real running Ollama (real embeddings stored in pgvector, real similarity search
+ranked correctly, real qwen2.5 chat completion answered correctly), not just
+`FakeEmbedder`. Also hit and fixed, mid-session, unrelated to this sub-phase's own
+code: the C: drive disk-space crisis and the stale-port-forward issue, both now
+documented above under "Known Windows/environment quirks."
+**Next up:** Phase 3.2 — rule engine (`app/ai/rules.py`, JSON conditions →
+code, confidence 1.0, source=rule, admin CRUD API). No open decisions block it.

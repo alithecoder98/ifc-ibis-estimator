@@ -37,7 +37,12 @@ class Settings(BaseSettings):
     # outside "development" - never let this reach staging/production.
     auth_disabled: bool = False
 
-    llm_api_key: str = ""
+    # Local/open-source model serving (Phase 3, decided 2026-10-13) - no API key, it's
+    # self-hosted via docker-compose's ollama service.
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_embedding_model: str = "bge-m3"
+    ollama_llm_model: str = "qwen2.5:7b-instruct"
+
     jev_api_url: str = ""
     jev_api_key: str = ""
 

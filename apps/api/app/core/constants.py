@@ -3,8 +3,8 @@ across models/migrations.
 """
 
 # Dimension of the embeddings stored in `code_list.embedding` and
-# `example_memory.embedding`. 1536 matches common OpenAI embedding models
-# (text-embedding-3-small/ada-002); revisit once the LLM/embedding provider is picked
-# (Phase 3) — changing this later means a migration that drops and recreates the vector
-# columns, so better to confirm it before any real embeddings are written.
-EMBEDDING_DIM = 1536
+# `example_memory.embedding`. 1024 matches bge-m3 (Phase 3's chosen embedding model,
+# served locally via Ollama — decided 2026-10-13, see CLAUDE.md). No real embeddings
+# existed yet when this changed from the earlier OpenAI-sized placeholder (1536), so
+# no data was lost.
+EMBEDDING_DIM = 1024

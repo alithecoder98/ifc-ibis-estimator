@@ -6,6 +6,7 @@ embeddings; a rule; an export; a job) against the real local Postgres, then roll
 so nothing persists. Requires docker-compose up (see README.md).
 """
 
+from app.core.constants import EMBEDDING_DIM
 from app.db.models import (
     Classification,
     CodeList,
@@ -69,13 +70,13 @@ def test_full_chain_round_trips_and_vector_columns_work() -> None:
             ibis_code="12.34",
             internal_element="Buitenwand beton",
             family="wall",
-            embedding=[0.1] * 1536,
+            embedding=[0.1] * EMBEDDING_DIM,
         )
         db.add(code)
 
         example = ExampleMemory(
             profile_text="IfcWall, Concrete, 200mm, external",
-            embedding=[0.2] * 1536,
+            embedding=[0.2] * EMBEDDING_DIM,
             final_ibis_code="12.34",
             final_internal_element="Buitenwand beton",
             project_id=project.id,
@@ -126,7 +127,7 @@ def test_full_chain_round_trips_and_vector_columns_work() -> None:
 
         stored_code = db.get(CodeList, code.id)
         assert stored_code is not None
-        assert len(stored_code.embedding) == 1536
+        assert len(stored_code.embedding) == EMBEDDING_DIM
 
         stored_quantity = db.get(Quantity, quantity.id)
         assert stored_quantity is not None

@@ -264,9 +264,31 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       `load_ground_truth()`. 72/72 pytest, run twice, no leaks.
 
 ## Phase 3 — AI classification engine (weeks 4–6)
-- [ ] **3.1 Code list import API + embeddings** — admin upload of codes (CSV/XLSX), versioning,
+- [x] **3.1 Code list import API + embeddings** — admin upload of codes (CSV/XLSX), versioning,
       `Embedder` interface, embeddings stored in pgvector, family tags.
       Done when: similarity search returns sensible codes for 10 sample queries (test).
+      ✅ 2026-10-13 — **AI provider decided: local/open-source models via Ollama**, not a
+      paid API (see CLAUDE.md decision log) — bge-m3 for embeddings, qwen2.5:7b-instruct
+      for the LLM classifier (3.4). `docker-compose.yml` gets a new `ollama` service with
+      GPU passthrough (confirmed working on the dev machine's RTX 2060 Super, 100% GPU
+      offload, ~62 tok/s once warm). `EMBEDDING_DIM` changed 1536→1024 (bge-m3's real
+      size; the 1536 was always an OpenAI-shaped placeholder, no real embeddings existed
+      yet) via migration `9d1ddcb204f4`. `app/ai/embedder.py` (`OllamaEmbedder` +
+      `FakeEmbedder` — the plan's own instruction: "tests with a fake embedder"),
+      `app/ai/codes.py` (import/search logic), `app/routers/codes.py`
+      (`POST /codes/import`, `GET /codes`, `GET /codes/search`, all admin-gated except
+      list/search which estimators/viewers can also use). Verified live against the
+      real running Ollama, not just FakeEmbedder: real bge-m3 embeddings stored in
+      pgvector, a real cosine-distance search correctly ranked a matching code above an
+      unrelated one, and a real qwen2.5 chat completion answered correctly.
+      **Found and fixed during this session, not this sub-phase's fault:** the dev
+      machine's C: drive filled to 0.29GB free mid-pull (Docker's WSL2 virtual disk
+      doesn't shrink on its own after internal cleanup) — fixed by compacting the vhdx
+      via diskpart (see CLAUDE.md "Known Windows/environment quirks"). The forced
+      Docker Desktop/WSL restart that followed left Postgres/Garage's port-forwarding
+      stale (containers reported healthy, but connections failed) until each was
+      individually `docker compose restart`ed - also now documented in CLAUDE.md.
+      81/81 pytest, run twice, no leaks.
 - [ ] **3.2 Rule engine** — JSON rule conditions (class, type, material, thickness range, flags) →
       code; rules evaluated first; confidence 1.0, source = rule; admin CRUD API.
       Done when: unit tests cover match/no-match/priority.

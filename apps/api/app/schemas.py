@@ -30,3 +30,16 @@ class IfcFileOut(BaseModel):
     size_bytes: int
     status: str
     uploaded_at: datetime
+
+
+class CodeListOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ibis_code: str
+    internal_element: str
+    description: str | None
+    unit: str | None
+    family: str | None
+    version: int
+    created_at: datetime

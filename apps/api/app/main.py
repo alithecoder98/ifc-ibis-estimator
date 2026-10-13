@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
 from app.routers.auth import router as auth_router
+from app.routers.codes import router as codes_router
 from app.routers.health import router as health_router
 from app.routers.jobs import router as jobs_router
 from app.routers.projects import router as projects_router
@@ -36,6 +37,7 @@ app.include_router(health_router)
 app.include_router(jobs_router)
 app.include_router(auth_router)
 app.include_router(projects_router)
+app.include_router(codes_router)
 
 
 @app.get("/")

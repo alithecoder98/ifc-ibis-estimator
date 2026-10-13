@@ -50,8 +50,36 @@ services:
       timeout: 5s
       retries: 10
 
+  # Local/open-source model serving for Phase 3's Embedder (bge-m3) and LLMClient
+  # (qwen2.5:7b-instruct) - decided 2026-10-13 over a paid API: no per-call cost, no
+  # client data leaving the machine. GPU passthrough needs the host's nvidia container
+  # runtime (confirmed present during setup); falls back to CPU if unavailable, just
+  # slower. Pull models once with:
+  #   docker compose exec ollama ollama pull bge-m3
+  #   docker compose exec ollama ollama pull qwen2.5:7b-instruct
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres_data:
   redis_data:
   garage_data:
   garage_meta:
+  ollama_data:
