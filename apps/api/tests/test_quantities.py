@@ -163,16 +163,16 @@ def test_process_ifc_file_inserts_quantities_linked_to_elements() -> None:
         }
         assert wall_quantities == {"length": 5.0, "area_net": 15.0, "volume_net": 3.0}
 
-        # Column has no Qto in the fixture - element exists, no quantity rows for it.
-        column_element = (
+        # Beam has neither Qto nor geometry in the fixture - element exists, no
+        # quantity rows for it. (Column has no Qto either, but *does* have geometry -
+        # since 2.4 it gets geometry-sourced quantities instead; see test_geometry.py.)
+        beam_element = (
             db.query(Element)
-            .filter(
-                Element.ifc_file_id == ifc_file.id, Element.ifc_class == "IfcColumn"
-            )
+            .filter(Element.ifc_file_id == ifc_file.id, Element.ifc_class == "IfcBeam")
             .one()
         )
         assert (
-            db.query(Quantity).filter(Quantity.element_id == column_element.id).count()
+            db.query(Quantity).filter(Quantity.element_id == beam_element.id).count()
             == 0
         )
     finally:

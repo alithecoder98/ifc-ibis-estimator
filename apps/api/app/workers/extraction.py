@@ -1,9 +1,11 @@
 """IFC processing job, triggered after a successful upload.
 
-Downloads the file from storage, extracts building elements (Phase 2.2) and their Qto
-quantities (Phase 2.3), and inserts both into the DB in batches. Geometry is never
-touched here — keeps this fast and low-memory regardless of file size;
-geometry-computed fallback quantities are 2.4's job, profile_text/group_hash are 2.5's.
+Downloads the file from storage, extracts building elements (Phase 2.2) and their
+quantities, and inserts both into the DB in batches. Quantities come from Qto sets
+(Phase 2.3) where present; geometry (Phase 2.4, ifcopenshell.geom — the only step that
+touches geometry, so it's the only one with any real memory/CPU cost) fills in only
+for elements with no Qto data at all, never overriding real Qto data.
+profile_text/group_hash are 2.5's.
 """
 
 import tempfile
@@ -14,6 +16,7 @@ import ifcopenshell
 from app.db.models import Element, IfcFile, Job, Quantity
 from app.db.session import SessionLocal
 from app.ifc.extract import build_element_data, iter_supported_elements
+from app.ifc.geometry import compute_geometry_quantities
 from app.ifc.quantities import extract_quantities
 from app.storage import download_to_path
 
@@ -39,9 +42,12 @@ def process_ifc_file(job_id: int, ifc_file_id: int) -> None:
 
             raw_elements = list(iter_supported_elements(opened))
             elements_data = [build_element_data(e) for e in raw_elements]
-            quantities_by_global_id = {
-                e.GlobalId: extract_quantities(opened, e) for e in raw_elements
-            }
+            quantities_by_global_id = {}
+            for e in raw_elements:
+                qto_quantities = extract_quantities(opened, e)
+                quantities_by_global_id[e.GlobalId] = (
+                    qto_quantities if qto_quantities else compute_geometry_quantities(e)
+                )
 
         total = len(elements_data)
         for start in range(0, total, BATCH_SIZE):
