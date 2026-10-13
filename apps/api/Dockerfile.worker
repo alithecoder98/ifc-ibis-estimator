@@ -1,0 +1,17 @@
+# Production image for the RQ worker. Same dependencies as Dockerfile (the API image),
+# different CMD. Containers run Linux, so the plain `rq worker` (os.fork()-based) works
+# here even though local Windows dev needs --worker-class rq.worker.SimpleWorker
+# (see README) — that workaround is a Windows-host-only concern, not a container one.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir uv
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev --no-install-project
+
+COPY . .
+RUN uv sync --locked --no-dev
+
+CMD ["uv", "run", "--no-sync", "rq", "worker"]
