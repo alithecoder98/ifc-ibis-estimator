@@ -5,7 +5,7 @@ classification engine's tables, plus Phase 6's review/learning-loop tables.
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -55,6 +55,11 @@ class Classification(Base):
         String(20), nullable=False, index=True
     )  # see below
     source: Mapped[str] = mapped_column(String(20), nullable=False)  # rule / llm / jev
+    # Only set on llm/jev rows written when the project's engine is "both" (Phase
+    # 3.5): whether this row's ibis_code matched the other engine's, for that same
+    # element, in that same run. Null for rule rows and single-engine runs - there's
+    # nothing to agree or disagree with.
+    agreement: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False
     )

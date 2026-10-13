@@ -6,14 +6,18 @@ including through the real worker.
 """
 
 import os
+import uuid
 from pathlib import Path
 
 import pytest
 
 from app.ai.classify import AUTO_ACCEPT_THRESHOLD, classify_elements
-from app.ai.jev import JevClient, StubJevClient, get_jev_client
+from app.ai.embedder import FakeEmbedder
+from app.ai.jev import JevClient, JevResult, StubJevClient, get_jev_client
+from app.ai.llm import LLMResult
 from app.core.config import get_settings
-from app.db.models import Classification, Element, IfcFile, Job, Project, User
+from app.core.constants import EMBEDDING_DIM
+from app.db.models import Classification, CodeList, Element, IfcFile, Job, Project, User
 from app.db.session import SessionLocal
 from app.storage import upload_fileobj
 from app.workers.extraction import process_ifc_file
@@ -126,6 +130,236 @@ def test_classify_elements_calls_jev_once_per_group_not_per_element() -> None:
         db.close()
         if project_id is not None:
             cleanup_project_cascade(project_id, user_id)
+
+
+class _FakeLLMClient:
+    def __init__(self, result: LLMResult):
+        self.result = result
+        self.call_count = 0
+
+    def chat(self, prompt: str):
+        self.call_count += 1
+        return (
+            {
+                "ibis_code": self.result.ibis_code or "NONE",
+                "internal_element": self.result.internal_element,
+                "reasoning": self.result.reasoning,
+                "self_score": self.result.self_score,
+                "flags": self.result.flags,
+            },
+            10,
+            5,
+        )
+
+
+def _setup_project_and_element(engine: str) -> tuple[int, int, Element, int]:
+    """Also seeds one real CodeList row ("21.10", family "wall") so classify_with_llm
+    has a valid candidate to accept - without it, every ibis_code the fake LLM
+    returns would correctly fail validation as "not one of the candidates".
+    """
+    db = SessionLocal()
+    user = User(
+        email=f"classify-3.5-{engine}@example.com", password_hash="x", role="estimator"
+    )
+    db.add(user)
+    db.flush()
+    project = Project(
+        name=f"Classify 3.5 {engine} Project",
+        created_by=user.id,
+        classification_engine=engine,
+    )
+    db.add(project)
+    db.flush()
+    ifc_file = IfcFile(
+        project_id=project.id,
+        filename="x.ifc",
+        storage_key="unused",
+        size_bytes=1,
+        uploaded_by=user.id,
+    )
+    db.add(ifc_file)
+    db.flush()
+    # Unique per call, not a fixed literal: app/ai/retrieval.py caches its lookups
+    # in-process keyed by group_hash, so two tests sharing one literal group_hash
+    # would have the second reuse the first's cached CodeList rows - bound to a
+    # session that test already closed.
+    element = Element(
+        ifc_file_id=ifc_file.id,
+        global_id="G1",
+        ifc_class="IfcWall",
+        profile_text="profile",
+        group_hash=uuid.uuid4().hex,
+    )
+    db.add(element)
+
+    code = CodeList(
+        ibis_code="21.10",
+        internal_element="Buitenwand beton",
+        description="concrete exterior wall",
+        family="wall",
+        embedding=FakeEmbedder(EMBEDDING_DIM).embed(["concrete exterior wall"])[0],
+    )
+    db.add(code)
+    db.commit()
+    return project.id, user.id, element, code.id
+
+
+def _delete_code(code_id: int) -> None:
+    db = SessionLocal()
+    db.query(CodeList).filter(CodeList.id == code_id).delete()
+    db.commit()
+    db.close()
+
+
+def test_classify_elements_engine_llm_calls_llm_only() -> None:
+    project_id, user_id, element, code_id = _setup_project_and_element("llm")
+    db = SessionLocal()
+    try:
+        llm_client = _FakeLLMClient(
+            LLMResult(
+                ibis_code="21.10",
+                internal_element="Buitenwand beton",
+                reasoning="matches",
+                self_score=0.9,
+                flags=[],
+            )
+        )
+
+        import app.ai.classify as classify_module
+
+        original_get_embedder = classify_module.get_embedder
+        original_get_llm_client = classify_module.get_llm_client
+        classify_module.get_embedder = lambda: FakeEmbedder(EMBEDDING_DIM)
+        classify_module.get_llm_client = lambda: llm_client
+        try:
+            classify_elements(db, [element])
+        finally:
+            classify_module.get_embedder = original_get_embedder
+            classify_module.get_llm_client = original_get_llm_client
+        db.commit()
+
+        assert llm_client.call_count == 1
+        classifications = (
+            db.query(Classification)
+            .filter(Classification.element_id == element.id)
+            .all()
+        )
+        assert len(classifications) == 1
+        assert classifications[0].source == "llm"
+        assert classifications[0].ibis_code == "21.10"
+        assert classifications[0].status == "auto_accepted"
+        assert classifications[0].agreement is None
+    finally:
+        db.close()
+        _delete_code(code_id)
+        cleanup_project_cascade(project_id, user_id)
+
+
+def test_classify_elements_engine_both_agree() -> None:
+    project_id, user_id, element, code_id = _setup_project_and_element("both")
+    db = SessionLocal()
+    try:
+        llm_client = _FakeLLMClient(
+            LLMResult(
+                ibis_code="21.10",
+                internal_element="Buitenwand beton",
+                reasoning="matches",
+                self_score=0.9,
+                flags=[],
+            )
+        )
+
+        class AgreeingJevClient:
+            def classify(self, profile_text: str):
+                return JevResult(
+                    ibis_code="21.10",
+                    internal_element="Buitenwand beton",
+                    confidence=0.7,
+                    reasoning="jev agrees",
+                )
+
+        import app.ai.classify as classify_module
+
+        original_get_embedder = classify_module.get_embedder
+        original_get_llm_client = classify_module.get_llm_client
+        original_get_jev_client = classify_module.get_jev_client
+        classify_module.get_embedder = lambda: FakeEmbedder(EMBEDDING_DIM)
+        classify_module.get_llm_client = lambda: llm_client
+        classify_module.get_jev_client = lambda: AgreeingJevClient()
+        try:
+            classify_elements(db, [element])
+        finally:
+            classify_module.get_embedder = original_get_embedder
+            classify_module.get_llm_client = original_get_llm_client
+            classify_module.get_jev_client = original_get_jev_client
+        db.commit()
+
+        classifications = {
+            c.source: c
+            for c in db.query(Classification)
+            .filter(Classification.element_id == element.id)
+            .all()
+        }
+        assert set(classifications.keys()) == {"llm", "jev"}
+        assert classifications["llm"].agreement is True
+        assert classifications["jev"].agreement is True
+    finally:
+        db.close()
+        _delete_code(code_id)
+        cleanup_project_cascade(project_id, user_id)
+
+
+def test_classify_elements_engine_both_disagree() -> None:
+    project_id, user_id, element, code_id = _setup_project_and_element("both")
+    db = SessionLocal()
+    try:
+        llm_client = _FakeLLMClient(
+            LLMResult(
+                ibis_code="21.10",
+                internal_element="Buitenwand beton",
+                reasoning="matches",
+                self_score=0.9,
+                flags=[],
+            )
+        )
+
+        class DisagreeingJevClient:
+            def classify(self, profile_text: str):
+                return JevResult(
+                    ibis_code="99.99",
+                    internal_element="Something else",
+                    confidence=0.7,
+                    reasoning="jev disagrees",
+                )
+
+        import app.ai.classify as classify_module
+
+        original_get_embedder = classify_module.get_embedder
+        original_get_llm_client = classify_module.get_llm_client
+        original_get_jev_client = classify_module.get_jev_client
+        classify_module.get_embedder = lambda: FakeEmbedder(EMBEDDING_DIM)
+        classify_module.get_llm_client = lambda: llm_client
+        classify_module.get_jev_client = lambda: DisagreeingJevClient()
+        try:
+            classify_elements(db, [element])
+        finally:
+            classify_module.get_embedder = original_get_embedder
+            classify_module.get_llm_client = original_get_llm_client
+            classify_module.get_jev_client = original_get_jev_client
+        db.commit()
+
+        classifications = {
+            c.source: c
+            for c in db.query(Classification)
+            .filter(Classification.element_id == element.id)
+            .all()
+        }
+        assert classifications["llm"].agreement is False
+        assert classifications["jev"].agreement is False
+    finally:
+        db.close()
+        _delete_code(code_id)
+        cleanup_project_cascade(project_id, user_id)
 
 
 def test_process_ifc_file_creates_classifications_grouped_correctly() -> None:

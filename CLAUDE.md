@@ -175,7 +175,7 @@ njderidder's reply. No new client commitment has arrived — this is a deliberat
 to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
 Phase P and the decision log above for the full history.
 
-**Phase:** 3 — AI classification engine, **3.1–3.4 done**. Phase 2 (2.1–2.7) complete.
+**Phase:** 3 — AI classification engine, **3.1–3.5 done**. Phase 2 (2.1–2.7) complete.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -204,14 +204,19 @@ container healthy but Postgres/Garage connections failed with
 Windows-side port proxy was stale. Fix: `docker compose restart <service>` on the
 affected ones (not full `docker compose up`, not a Docker Desktop restart) immediately
 clears it.
-**Process hygiene (bit twice already):** killing background dev processes by port
+**Process hygiene (bit three times now — 3.5's live test looked like a real bug for
+a while because of this):** killing background dev processes by port
 (`Get-NetTCPConnection`) only catches the API/web servers — `rq worker` doesn't bind a
-port, so that pattern never touches it. To actually kill a worker: find it via
-`Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'uv.exe' -and
-$_.CommandLine -match 'rq' }` (filter by `Name`, not just `CommandLine`, or the
-PowerShell query can match its own command text), then `taskkill /F /T /PID <pid>` on
-the root of its process tree, then re-run the same query and confirm it's empty —
-don't trust a single kill attempt.
+port, so that pattern never touches it. **Query by command line, not by "the one I
+just started"** — `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine
+-match 'rq worker' }` and kill *every* PID it returns, every time, even when you
+only meant to restart one. Multiple stray workers from earlier in the same session
+(each from an earlier sub-phase's live test) can survive unnoticed and race a freshly
+started one for the next job — the stale one can win, silently run old code, and
+produce a result that looks like a real regression in the new code when the bug is
+actually "there were two workers." After killing, re-run the same query and confirm
+it returns nothing before trusting any live test's result — don't trust a single
+kill attempt, and don't assume "I started a new one" means "only one is running."
 **Running `pnpm build` while `pnpm dev` is active against the same `apps/web/.next`
 directory corrupts the dev server every time** (`ENOENT ... _buildManifest.js.tmp...`,
 then 500s on every route) — bitten twice now during routine audits. Either stop the
@@ -340,9 +345,26 @@ correctly matched real materials to real codes, correctly refused a bad match on
 ambiguous roof slab, correctly flagged every proxy per the placeholder rules file.
 13 elements (the fixture's full count, honestly short of the plan's "50"), real
 token counts logged, $0.00 cost. 110/110 pytest, run twice, no leaks.
-**Next up:** Phase 3.5 — jev adapter. P.1 already built `app/ai/jev.py`'s
-`StubJevClient`/`JevClient` split; 3.5 additionally wants it running *in parallel*
-with the LLM (not instead of), storing agreement between the two, and a per-project
-engine setting (`llm` | `jev` | `both`). Still blocked on jev's real API docs/access
-(see "Still open") for the real-client half; the parallel-running + agreement-storage
-wiring itself isn't blocked and can be built now against the stub.
+**Also this session:** 3.5 (jev adapter, parallel + agreement) done.
+`projects.classification_engine` (`llm`/`jev`/`both`, **defaults to `"jev"`** -
+defaulting to `"llm"` would make every worker-integration test, and CI, call the
+real multi-GB Ollama model instead of the fast stub, a regression risk not a style
+choice) + `classifications.agreement` (set only on llm/jev rows from a `"both"`
+run). `PATCH /projects/{id}` (admin) changes it. `app/ai/classify.py` now reads the
+project's engine after rule-matching and calls jev and/or the LLM per group,
+writing two rows on `"both"` with `agreement` = whether their codes matched (both
+`None` counts as agreement). 116/116 pytest, run twice, no leaks. **Verified live**
+with engine `"both"` - every element got two rows, agreement computed correctly.
+**The stray-worker bug (see "Process hygiene" above) bit again** mid-verification -
+an old worker survived from an earlier live test and raced the fresh one, silently
+processing the first live-test upload with pre-3.5 code and making it look like the
+engine dispatch hadn't worked. Fixed by killing *every* PID matching `rq worker`,
+not just the most recently started one, and confirming zero remain before trusting
+the next result - now the strengthened standing rule, not just this session's fix.
+**Next up:** Phase 3.6 — confidence + routing (combine self_score, rule/LLM/jev
+agreement, retrieval shortlist distance, data completeness into one routing
+decision; hard flags for proxy/missing-quantity/composite/unknown-material;
+configurable thresholds; a calibration script picking a threshold for ≥95%
+auto-accept precision on ground truth). No open decisions block it, but real
+calibration needs real ground truth - still blocked on njderidder's data, same as
+P.4/2.7; build the mechanism now, self-tested, same pattern as those two.

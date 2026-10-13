@@ -18,9 +18,14 @@ class ProjectOut(BaseModel):
     id: int
     name: str
     status: str
+    classification_engine: str
     created_by: int
     created_at: datetime
     updated_at: datetime
+
+
+class ProjectUpdate(BaseModel):
+    classification_engine: Literal["llm", "jev", "both"] | None = None
 
 
 class IfcFileOut(BaseModel):

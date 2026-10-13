@@ -361,9 +361,33 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       (the fixture's full count — fewer than the plan's "50," noted honestly rather
       than padded), 7367 prompt + 1043 completion tokens, $0.00 cost (logged, not
       estimated — local model). 110/110 pytest, run twice, no leaks.
-- [ ] **3.5 jev adapter** — `JevClient` (or stub if no access yet); run in parallel with LLM;
+- [x] **3.5 jev adapter** — `JevClient` (or stub if no access yet); run in parallel with LLM;
       store agreement; per-project engine setting (llm | jev | both).
       Done when: adapter tested with recorded responses or stub.
+      ✅ 2026-10-13 — `projects.classification_engine` (migration `b4df4b2fc6f1`,
+      **defaults to `"jev"`, not `"llm"`**: defaulting to `"llm"` would make every
+      worker-integration test - and CI - call the real multi-GB local Ollama model
+      instead of the fast deterministic stub, a real regression risk rather than a
+      style choice) + `classifications.agreement` (nullable boolean, set only on
+      llm/jev rows from a `"both"` run). `PATCH /projects/{id}` (admin-only) changes
+      it after creation. `app/ai/classify.py` extended: after rule-matching, reads
+      the project's engine, calls jev and/or the LLM (via 3.3's retrieval + 3.4's
+      `classify_with_llm`) per group, and on `"both"` writes **two** rows per
+      element (`source="llm"` and `source="jev"`) with `agreement` set to whether
+      their `ibis_code`s matched (both `None` counts as agreement - "no good match"
+      is itself a signal the two engines can agree on). Tested with the jev stub
+      throughout (real jev still blocked on API docs/access). **Verified live**
+      with engine `"both"`: every element correctly got two rows, `agreement` was
+      `True` exactly when the LLM also returned no match and `False` whenever the
+      LLM found a real code against the stub's unconditional `None`. 116/116
+      pytest, run twice, no leaks. **The stray-worker process-hygiene bug bit
+      again, mid-sub-phase** - multiple old `rq worker` processes had survived
+      across earlier live tests this session; one of them raced the freshly
+      restarted worker for the job and silently processed it with pre-3.5 code,
+      making the first live-verification attempt look like the engine dispatch
+      hadn't taken effect at all. Fixed by killing every PID matching `rq worker`
+      (not just the one most recently started) and confirming zero remain before
+      trusting any live result - see the strengthened note in CLAUDE.md.
 - [ ] **3.6 Confidence + routing** — combine self_score, rule/LLM/jev agreement, shortlist distance,
       data completeness; hard flags (proxy, missing quantity, composite, unknown material);
       thresholds configurable; status = auto_accepted | needs_review.

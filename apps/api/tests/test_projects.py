@@ -107,6 +107,68 @@ def test_list_and_get_project() -> None:
         _delete_user(user.id)
 
 
+def test_update_project_classification_engine_as_admin() -> None:
+    admin = _create_user("admin-3.5a@example.com", "admin")
+    _login_as(admin)
+    project_id = None
+    try:
+        create_response = client.post("/projects", json={"name": "Engine Project"})
+        project_id = create_response.json()["id"]
+        assert create_response.json()["classification_engine"] == "jev"
+
+        patch_response = client.patch(
+            f"/projects/{project_id}", json={"classification_engine": "both"}
+        )
+        assert patch_response.status_code == 200
+        assert patch_response.json()["classification_engine"] == "both"
+
+        get_response = client.get(f"/projects/{project_id}")
+        assert get_response.json()["classification_engine"] == "both"
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(admin.id)
+
+
+def test_update_project_classification_engine_requires_admin() -> None:
+    estimator = _create_user("estimator-3.5b@example.com", "estimator")
+    _login_as(estimator)
+    project_id = None
+    try:
+        create_response = client.post("/projects", json={"name": "Engine Project B"})
+        project_id = create_response.json()["id"]
+
+        patch_response = client.patch(
+            f"/projects/{project_id}", json={"classification_engine": "llm"}
+        )
+        assert patch_response.status_code == 403
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(estimator.id)
+
+
+def test_update_project_rejects_invalid_engine_value() -> None:
+    admin = _create_user("admin-3.5c@example.com", "admin")
+    _login_as(admin)
+    project_id = None
+    try:
+        create_response = client.post("/projects", json={"name": "Engine Project C"})
+        project_id = create_response.json()["id"]
+
+        patch_response = client.patch(
+            f"/projects/{project_id}", json={"classification_engine": "not-a-engine"}
+        )
+        assert patch_response.status_code == 422
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(admin.id)
+
+
 def test_get_project_404_for_missing() -> None:
     user = _create_user("estimator-2.1c@example.com", "estimator")
     _login_as(user)

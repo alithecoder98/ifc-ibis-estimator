@@ -19,7 +19,7 @@ from app.ai.export import build_export_csv
 from app.core.deps import require_role
 from app.db.models import Classification, Element, IfcFile, Project, Quantity, User
 from app.db.session import get_db
-from app.schemas import IfcFileOut, ProjectCreate, ProjectOut
+from app.schemas import IfcFileOut, ProjectCreate, ProjectOut, ProjectUpdate
 from app.storage import download_bytes, upload_fileobj
 from app.workers.extraction import process_ifc_file
 from app.workers.jobs import create_job
@@ -62,6 +62,31 @@ def get_project(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
         )
+    return project
+
+
+@router.patch("/{project_id}", response_model=ProjectOut)
+def update_project(
+    project_id: int,
+    body: ProjectUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+) -> Project:
+    """Admin-only (Phase 3.5): currently only exposes classification_engine - which
+    AI engine(s) classify_elements() calls for this project's future uploads.
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
+
+    updates = body.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(project, field, value)
+
+    db.commit()
+    db.refresh(project)
     return project
 
 
