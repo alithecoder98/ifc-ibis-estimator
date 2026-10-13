@@ -147,7 +147,7 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 
 ## Current status
 
-**Phase:** 2 — IFC processing engine, in progress (2.1 and 2.2 done).
+**Phase:** 2 — IFC processing engine, in progress (2.1, 2.2, 2.3 done).
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -157,27 +157,37 @@ are Linux, so Dockerfiles don't need this); this shadcn/ui install is on Base UI
 primitives, not Radix (`render` prop, not `asChild`); git's autocrlf here needs
 `endOfLine: "auto"` in apps/web/.prettierrc.json or every fresh checkout flags as
 unformatted; Git Bash mangles `/garage` paths in `docker compose exec` — prefix with
-`MSYS_NO_PATHCONV=1`; **killing background dev processes by port (`Get-NetTCPConnection`)
-only catches the API/web servers — `rq worker` processes don't bind a port, so that
-pattern never touches them.** Stray workers silently accumulated across a whole session
-once and raced the current one for jobs, intermittently running stale code. To actually
-kill a worker: find it via `Get-CimInstance Win32_Process | Where-Object CommandLine
--match 'rq.worker.SimpleWorker'`, then `taskkill /F /T /PID <pid>` on the root of its
-process tree, and verify the list is empty afterward — don't trust a single kill attempt.
+`MSYS_NO_PATHCONV=1`; a file's `AREAUNIT`/`VOLUMEUNIT` can be declared independently of
+`LENGTHUNIT` in IFC, not derived from it — always get each unit type's scale
+separately via `ifcopenshell.util.unit.calculate_unit_scale(file, unit_type)`, never
+assume area = length_scale².
+**Process hygiene (bit twice already):** killing background dev processes by port
+(`Get-NetTCPConnection`) only catches the API/web servers — `rq worker` doesn't bind a
+port, so that pattern never touches it. To actually kill a worker: find it via
+`Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'uv.exe' -and
+$_.CommandLine -match 'rq' }` (filter by `Name`, not just `CommandLine`, or the
+PowerShell query can match its own command text), then `taskkill /F /T /PID <pid>` on
+the root of its process tree, then re-run the same query and confirm it's empty —
+don't trust a single kill attempt.
+**Test cleanup helpers must track every FK that points at what they're deleting** —
+each new table (quantities → elements, in 2.3) breaks any existing test cleanup that
+doesn't know about it, causing silent row leaks that surface later as confusing
+UNIQUE-constraint failures in unrelated tests. When adding a table with a new FK,
+grep existing `_cleanup()` helpers for the table it references.
 **Correction to an earlier assumption:** Phase 2's engineering sub-phases (2.1–2.6) do
 **not** need the client's real IFC files/code lists — test fixtures are enough (see
 `apps/api/tests/fixtures/README.md`: a synthetic one covering all 12 supported element
 types, plus a real public-domain sample with authoring-tool messiness). Only **2.7**
 (extraction comparison report against `data/ground_truth.csv`) and later QA/export
 phases are actually blocked on client data — see "Still open" below.
-**Last session:** 2026-10-13 — sub-phase 2.2 (element extraction) done:
-`app/ifc/extract.py` pulls walls/slabs/roofs/footings/columns/beams/stairs/railings/
-doors/windows/coverings/proxies into the `elements` table via a real worker job
-(replacing 2.1's stub). Verified against both fixtures via pytest (29/29) and live
-through the actual upload → worker → DB pipeline. **Not yet proven:** behavior on a
-genuinely large file (biggest fixture is 92KB) — revisit once one is available.
-Also this session: added the `AUTH_DISABLED` dev-mode login bypass (own commit) — `/`
-now redirects to `/projects` instead of `/login` as a side effect.
-**Next up:** sub-phase 2.3 — Quantities from Qto (read `Qto_*BaseQuantities` sets,
-normalize to SI, write `quantities` rows with `source="qto"`). `real_sample.ifc` already
-has real Qto data to test against.
+**Last session:** 2026-10-13 — sub-phase 2.3 (quantities from Qto) done:
+`app/ifc/quantities.py` reads `Qto_<Class>BaseQuantities` sets, maps IFC's
+inconsistent per-class property names onto canonical `quantity_type`s, converts to SI.
+Exact match on the synthetic fixture's wall/slab/footing values, plausible real values
+on `real_sample.ifc`. Verified via pytest (35/35) and live through the real pipeline.
+Also recently: sub-phase 2.2 (element extraction); the `AUTH_DISABLED` dev-mode login
+bypass (`/` redirects to `/projects` instead of `/login` as a side effect).
+**Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB) —
+revisit once one is available, relevant to both 2.2 and 2.3's "no memory blow-up" bar.
+**Next up:** sub-phase 2.4 — Geometry fallback (`ifcopenshell.geom` for area/volume/
+length when an element has no Qto data at all, `source="geometry"`).

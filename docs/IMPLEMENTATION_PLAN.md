@@ -105,8 +105,16 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       target. Revisit once a large real file is available. Also surfaced and fixed a
       process-hygiene issue unrelated to the extraction code itself (stray `rq worker`
       processes accumulating across the session) — see commit `b40f795`.
-- [ ] **2.3 Quantities from Qto** — read standard Qto sets; normalise to SI; source = qto.
+- [x] **2.3 Quantities from Qto** — read standard Qto sets; normalise to SI; source = qto.
       Done when: wall/slab/footing quantities match expected fixture values.
+      ✅ 2026-10-13 — exact match on synthetic fixture (wall: length 5.0m, area_net
+      15.0m², volume_net 3.0m³; slab: area_net 40.0m², area_gross 42.0m², volume_net
+      10.0m³; footing: volume_net 2.5m³, volume_gross 2.8m³), plausible real values on
+      the public real_sample.ifc. SI conversion looks up LENGTHUNIT/AREAUNIT/VOLUMEUNIT
+      scales independently (not derived from length² / length³) — real_sample.ifc
+      declares millimetre length but plain metre-based area/volume, which would have
+      silently produced wrong values otherwise. Verified via pytest (35/35) and live
+      through the real upload → worker → DB pipeline for both fixtures.
 - [ ] **2.4 Geometry fallback** — ifcopenshell.geom for area/volume/length when Qto missing;
       opening deductions for walls; per-layer quantities for composites; source = geometry.
       Done when: fallback results within ±3% of Qto on elements that have both.
