@@ -4,6 +4,7 @@ Garage locally; swap S3_ENDPOINT_URL/credentials for a real EU provider in stagi
 prod — same boto3 client code either way, that's the point of an S3-compatible API.
 """
 
+from pathlib import Path
 from typing import BinaryIO
 
 import boto3
@@ -27,3 +28,8 @@ def get_s3_client():
 def upload_fileobj(fileobj: BinaryIO, key: str) -> None:
     settings = get_settings()
     get_s3_client().upload_fileobj(fileobj, settings.s3_bucket, key)
+
+
+def download_to_path(key: str, path: Path) -> None:
+    settings = get_settings()
+    get_s3_client().download_file(settings.s3_bucket, key, str(path))

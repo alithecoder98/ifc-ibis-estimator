@@ -26,7 +26,7 @@ class IfcFile(Base):
     uploaded_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False
     )
-    # uploaded / validating / extracting / classifying / done / failed
+    # uploaded / extracting / extracted / classifying / done / failed
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="uploaded")
 
 
