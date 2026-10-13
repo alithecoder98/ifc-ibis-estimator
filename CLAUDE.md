@@ -175,7 +175,7 @@ njderidder's reply. No new client commitment has arrived — this is a deliberat
 to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
 Phase P and the decision log above for the full history.
 
-**Phase:** 3 — AI classification engine, **3.1 done**. Phase 2 (2.1–2.7) complete.
+**Phase:** 3 — AI classification engine, **3.1–3.2 done**. Phase 2 (2.1–2.7) complete.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -294,5 +294,23 @@ ranked correctly, real qwen2.5 chat completion answered correctly), not just
 `FakeEmbedder`. Also hit and fixed, mid-session, unrelated to this sub-phase's own
 code: the C: drive disk-space crisis and the stale-port-forward issue, both now
 documented above under "Known Windows/environment quirks."
-**Next up:** Phase 3.2 — rule engine (`app/ai/rules.py`, JSON conditions →
-code, confidence 1.0, source=rule, admin CRUD API). No open decisions block it.
+**Also this session:** 3.2 (rule engine) done. `app/ai/rules.py` evaluates rules
+**per element, not per `group_hash`** like jev — `group_hash` excludes `storey`, so a
+storey-based rule can still split a jev group. Wired into `app/ai/classify.py` as the
+first step: a matched element gets `confidence=1.0, source="rule", auto_accepted` and
+never calls jev. Admin CRUD at `app/routers/rules.py`. `scripts/load_initial_rules.py`
++ `scripts/example_rules_initial.json`, self-tested only (no real client rules yet).
+Verified live: added a rule matching `real_sample.ifc`'s actual `stone_sand-lime`
+wall material (real data, not the fixture's literal "concrete"), confirmed 3 matching
+walls got routed to the rule and skipped jev, a 4th wall with different material and
+everything else correctly still went to jev. 94/94 pytest, run twice, no leaks.
+**A process-hygiene miss, not a bug:** the live API server and RQ worker were both
+started earlier in this session without `--reload`, before this sub-phase's code
+existed — the first live test against them silently ran the *old* code (404 on the
+new route, then 13/13 elements routed to jev with zero rule matches even after adding
+a real rule) until both were restarted. Worth remembering: a 200 OK from a long-running
+dev server doesn't confirm it's running today's code.
+**Next up:** Phase 3.3 — retrieval (`app/ai/retrieval.py`: shortlist top-15 codes by
+family, top-5 similar example-memory elements, caching per `group_hash`). No open
+decisions block it; needs real `code_list`/`example_memory` rows to be meaningfully
+testable beyond unit tests with fakes, same self-tested-only caveat as 3.1.

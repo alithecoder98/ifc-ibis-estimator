@@ -1,0 +1,25 @@
+[
+  {
+    "conditions": [
+      { "field": "ifc_class", "operator": "==", "value": "IfcWall" },
+      { "field": "material_keyword", "operator": "contains", "value": "concrete" },
+      { "field": "is_external", "operator": "==", "value": true }
+    ],
+    "result_ibis_code": "21.10",
+    "result_internal_element": "Buitenwand beton",
+    "priority": 10,
+    "status": "active"
+  },
+  {
+    "conditions": [
+      { "field": "ifc_class", "operator": "==", "value": "IfcWall" },
+      { "field": "material_keyword", "operator": "contains", "value": "concrete" },
+      { "field": "thickness_mm", "operator": "between", "value": [150, 250] },
+      { "field": "is_external", "operator": "==", "value": true }
+    ],
+    "result_ibis_code": "21.11",
+    "result_internal_element": "Buitenwand beton 150-250mm",
+    "priority": 20,
+    "status": "active"
+  }
+]

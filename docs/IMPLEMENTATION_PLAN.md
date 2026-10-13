@@ -289,9 +289,25 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       stale (containers reported healthy, but connections failed) until each was
       individually `docker compose restart`ed - also now documented in CLAUDE.md.
       81/81 pytest, run twice, no leaks.
-- [ ] **3.2 Rule engine** — JSON rule conditions (class, type, material, thickness range, flags) →
+- [x] **3.2 Rule engine** — JSON rule conditions (class, type, material, thickness range, flags) →
       code; rules evaluated first; confidence 1.0, source = rule; admin CRUD API.
       Done when: unit tests cover match/no-match/priority.
+      ✅ 2026-10-13 — `app/ai/rules.py` (condition fields: `ifc_class`,
+      `predefined_type`, `material_keyword`, `thickness_mm` (range), `is_external`,
+      `load_bearing`, `storey_keyword`; `match_rule()` picks the highest-`priority`
+      match). Evaluated **per element, not per `group_hash`** like jev —
+      `group_hash` excludes `storey`, so a storey-based rule can still split a jev
+      group; wired into `app/ai/classify.py` as the first step, so a matched element
+      never calls jev at all. Admin CRUD at `app/routers/rules.py`
+      (`POST/GET/PATCH/DELETE /rules`). `scripts/load_initial_rules.py` +
+      `scripts/example_rules_initial.json` for the plan's "load from
+      `data/rules_initial.json`" — self-tested only, no real client rules yet.
+      Verified live against a real upload: added a rule matching
+      `real_sample.ifc`'s actual `stone_sand-lime` wall material (not the fixture's
+      literal "concrete" — real data, real messiness), confirmed 3 matching walls
+      got `source="rule", confidence=1.0, auto_accepted` and skipped jev entirely,
+      while a 4th wall with different material and everything else correctly fell
+      through to jev. 94/94 pytest, run twice, no leaks.
 - [ ] **3.3 Retrieval** — shortlist top-15 codes within family; example memory top-5 similar approved
       elements; caching per group hash.
       Done when: tests with seeded examples return expected neighbours.
