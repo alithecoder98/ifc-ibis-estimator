@@ -175,7 +175,7 @@ njderidder's reply. No new client commitment has arrived — this is a deliberat
 to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_PLAN.md`'s
 Phase P and the decision log above for the full history.
 
-**Phase:** 3 — AI classification engine, **3.1–3.3 done**. Phase 2 (2.1–2.7) complete.
+**Phase:** 3 — AI classification engine, **3.1–3.4 done**. Phase 2 (2.1–2.7) complete.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -325,7 +325,24 @@ already warns about, now fixed in the one shared function instead of a workaroun
 this sub-phase's own tests. Verified live against real Ollama/pgvector (not just
 `FakeEmbedder`): real shortlist, real family-fallback, real example ranking, real
 cache hit. 100/100 pytest, run twice, no leaks.
-**Next up:** Phase 3.4 — LLM classifier (`LLMClient` interface + the decided
-qwen2.5:7b-instruct provider, prompt template combining profile + retrieval's
-candidates/examples + a rules summary, strict JSON schema output, Pydantic
-validation). No open decisions block it — the provider was decided in 3.1.
+**Also this session:** 3.4 (LLM classifier) done. `app/ai/llm.py`'s `OllamaLLMClient`
+uses Ollama 0.40.3's real JSON-**schema**-constrained output (confirmed by hitting the
+live API before writing code - it's not just `format: "json"`), with `self_score`'s
+`minimum`/`maximum` in the schema itself so the model stays in range at generation
+time. Prompt is the versioned `app/ai/prompts/classify_v1.txt`, reading
+`docs/estimating_rules.md` (a placeholder - client's real estimating guidance hasn't
+arrived). `classify_with_llm()` retries up to 3 total on bad JSON / out-of-range
+score / an invalid code, fails safe (`flags=["llm_failed"]`) rather than raising, one
+call per `group_hash`. **Not wired into `classify.py` yet** - that's 3.6/3.7's job.
+Mocked-client tests (10, per the plan) plus `scripts/run_llm_classification.py` run
+for real: real codes, real `real_sample.ifc` upload, real qwen2.5 inference -
+correctly matched real materials to real codes, correctly refused a bad match on an
+ambiguous roof slab, correctly flagged every proxy per the placeholder rules file.
+13 elements (the fixture's full count, honestly short of the plan's "50"), real
+token counts logged, $0.00 cost. 110/110 pytest, run twice, no leaks.
+**Next up:** Phase 3.5 — jev adapter. P.1 already built `app/ai/jev.py`'s
+`StubJevClient`/`JevClient` split; 3.5 additionally wants it running *in parallel*
+with the LLM (not instead of), storing agreement between the two, and a per-project
+engine setting (`llm` | `jev` | `both`). Still blocked on jev's real API docs/access
+(see "Still open") for the real-client half; the parallel-running + agreement-storage
+wiring itself isn't blocked and can be built now against the stub.

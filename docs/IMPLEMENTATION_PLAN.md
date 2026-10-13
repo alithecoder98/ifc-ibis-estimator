@@ -329,11 +329,38 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       that one shared function. Verified live against real Ollama/pgvector, not just
       `FakeEmbedder`: real shortlist, real fallback-to-all-families, real
       similar-example ranking, real cache hit. 100/100 pytest, run twice, no leaks.
-- [ ] **3.4 LLM classifier** — `LLMClient` interface + provider implementation; prompt template
+- [x] **3.4 LLM classifier** — `LLMClient` interface + provider implementation; prompt template
       (profile + candidates + examples + rules summary); strict JSON schema
       {code, internal_element, reasoning, self_score, flags}; Pydantic validation; retries; batching
       per group; token/cost logging.
       Done when: mocked-provider tests pass; live run on 50 elements succeeds and logs cost.
+      ✅ 2026-10-13 — `app/ai/llm.py`: `OllamaLLMClient` (qwen2.5:7b-instruct, the
+      3.1-decided provider) uses Ollama 0.40.3's real JSON-schema-constrained
+      output (`format: <schema>`, not just `format: "json"` — confirmed by hitting
+      the live API before writing any code), with `minimum`/`maximum` on
+      `self_score` in the schema itself so the model stays in range at generation
+      time rather than only at validation time. Prompt lives in the versioned
+      `app/ai/prompts/classify_v1.txt` (profile + 3.3's candidates/examples +
+      `docs/estimating_rules.md`, itself a placeholder — client's real estimating
+      guidance hasn't arrived, same blocked status as the code list/rules/ground
+      truth). `classify_with_llm()` validates via Pydantic, retries up to
+      `MAX_ATTEMPTS=3` total on bad JSON / out-of-range `self_score` / an
+      `ibis_code` not in the candidate set or `"NONE"`, and fails safe (flags
+      `["llm_failed"]`, `self_score=0.0`) rather than raising, matching
+      `StubJevClient`'s philosophy. One call per `group_hash`, batched like
+      jev/rules/retrieval. **Not wired into `classify.py` yet** — combining this
+      signal with rules/jev is 3.6/3.7's job. Tested with a mocked client per the
+      plan's own instruction (10 tests: retry-on-bad-JSON, retry-on-invalid-code,
+      retry-on-out-of-range-score, `"NONE"` handling, retries-exhausted fail-safe).
+      `scripts/run_llm_classification.py` is the plan's manual script — **run for
+      real** against a live project (real codes imported, real `real_sample.ifc`
+      upload, real qwen2.5 inference): correctly matched sand-lime walls and the
+      concrete floor slab to their real codes, correctly refused to force a match
+      for the roof slab when no candidate fit, correctly flagged every proxy
+      element per `estimating_rules.md`'s own placeholder guidance. 13 elements
+      (the fixture's full count — fewer than the plan's "50," noted honestly rather
+      than padded), 7367 prompt + 1043 completion tokens, $0.00 cost (logged, not
+      estimated — local model). 110/110 pytest, run twice, no leaks.
 - [ ] **3.5 jev adapter** — `JevClient` (or stub if no access yet); run in parallel with LLM;
       store agreement; per-project engine setting (llm | jev | both).
       Done when: adapter tested with recorded responses or stub.
