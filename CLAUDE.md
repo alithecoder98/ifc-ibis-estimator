@@ -133,6 +133,16 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
   start outside `ENVIRONMENT=development`, tests always run with real auth regardless
   of local `.env`. **Must stay off for anything beyond local dev** — this is a
   convenience toggle, not a decision to drop RBAC from the MVP.
+- 2026-10-13 — **Scope realignment: Phase P (minimal PoC) now supersedes Phases 0–9 as
+  the current priority** (see `docs/IMPLEMENTATION_PLAN.md`). The person driving this
+  (njderidder) is self-financing a trust-based ~1–2 day proof of concept to convince
+  the actual end client to commit at all — no contract exists yet. His ask is much
+  smaller than the full plan: extract → match via jev alone → basic results + flag
+  uncertain ones → compare against manually-verified calcs. The full-MVP engineering
+  already done (auth/RBAC, Docker/CI, DB schema, full frontend shell) is real and
+  correct but was built ahead of what's actually being asked for right now — paused,
+  not wasted, resumes only if the client commits. Full context:
+  `~/.claude/projects/e--FIVERR-DCC/memory/client_brief_and_context.md`.
 
 ## Still open (don't block the engineering work, but block specific later sub-phases)
 
@@ -147,7 +157,13 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
 
 ## Current status
 
-**Phase:** 2 — IFC processing engine, in progress (2.1–2.5 done).
+**⚠ Priority changed 2026-10-13: Phase P (minimal PoC) is current, not Phase 2.6.**
+See `docs/IMPLEMENTATION_PLAN.md`'s Phase P and the decision log above. Phases 1–2.5
+below are done and real, just paused ahead of where they're needed — resume only on
+an explicit decision to go back to the full build.
+
+**Phase:** 2 — IFC processing engine, 2.1–2.5 done, **paused here** (not continuing to
+2.6/2.7 — see Phase P above).
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -205,6 +221,9 @@ fallback); the `AUTH_DISABLED` dev-mode login bypass (`/` redirects to `/project
 instead of `/login` as a side effect).
 **Still not proven:** behavior on a genuinely large file (biggest fixture is 92KB) —
 revisit once one is available, relevant to 2.2–2.4's "no memory blow-up" bar.
-**Next up:** sub-phase 2.6 — Fragments for the 3D viewer (convert IFC to That Open
-fragments, map fragment IDs ↔ GlobalIds) — this is the first sub-phase touching the
-frontend/Node side since Phase 1.6, not pure backend like 2.1–2.5.
+**Next up:** Phase P.1/P.2 — a `JevClient` stub (`app/ai/jev.py`) and a classification
+worker step that calls it once per `group_hash` (reusing 2.5's grouping to cut API
+calls) — both buildable now against a stub response, ready to swap in real jev
+credentials with no code change once njderidder provides them. **Not** sub-phase 2.6
+(3D viewer fragments) — that's explicitly deferred with the rest of Phases 3–9 until
+the client commits.

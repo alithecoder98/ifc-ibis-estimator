@@ -7,6 +7,66 @@ Legend: **Done when** = acceptance check Claude must show passing before the box
 
 ---
 
+## ⚠ Current priority: Phase P (minimal PoC), not the full phase order below
+
+As of 2026-10-13, **Phase P is the actual current priority** — see immediately below.
+Phases 0–9 remain the target if the client commits to a full build, but nothing past
+Phase P should be worked on without an explicit decision to resume the full plan. See
+CLAUDE.md's "Scope realignment" note in the decision log for the context.
+
+## Phase P — Minimal PoC (current priority — trust-based, unpaid, ~1–2 days)
+
+**Context:** njderidder (not the end client — a friend of the construction company's
+owner) is self-financing this to convince the client to commit to a full build at all.
+No contract exists yet. He explicitly asked for something much smaller than Phases
+0–9: extract → match via jev → show results + flag uncertain ones → compare against
+manually-verified calculations. 3D viewer, full frontend, auth/RBAC enforcement,
+rules+embeddings+LLM layers, review/correction loop, export, deployment are all
+explicitly deferred — not needed to prove the concept, only needed if the client says
+yes afterward.
+
+**Blocked on, from njderidder's side:** jev API credentials (not yet confirmed —
+he listed IFC files/IBIS codes/reference calcs as in progress but did not mention jev
+access), the 2 example IFC files, the internal IBIS code list, reference calculations.
+
+**Already reusable as-is, no rework needed:** the IFC extraction pipeline (sub-phases
+2.2–2.5 — element extraction, Qto quantities, geometry fallback, profiling/grouping).
+This is exactly step 1 of his 4-step ask.
+
+- [ ] **P.1 jev client** — `app/ai/jev.py`: a `JevClient` wrapping jev's real API
+      (same stubbed-until-credentials-exist pattern as other provider clients in this
+      codebase). Given one element's `profile_text`, returns a suggested IBIS
+      code + confidence/flag. Buildable now as a stub even without real jev access.
+      Done when: unit-testable against a stub/fake response; ready to swap in real
+      credentials with no code change once they arrive.
+- [ ] **P.2 Classification step** — worker step after profiling (2.5): calls jev
+      **once per unique `group_hash`**, not per element — reuses 2.5's grouping
+      specifically to cut jev API calls/cost, which matters since njderidder is
+      paying for API usage out of pocket. Stores the result (reuse the existing
+      `classifications` table, `source="jev"`).
+      Done when: runs end-to-end against a stubbed jev response on both test
+      fixtures; real jev swap-in requires no code change, only credentials.
+- [ ] **P.3 Minimal results output** — the simplest thing that shows classifications
+      and flags uncertain matches. Default toward a script exporting to Excel/CSV
+      (no frontend work, directly shareable) over a web page, unless a quick glance
+      in the browser is specifically wanted — decide concretely when building this,
+      not before.
+      Done when: njderidder can open the output and see element → suggested code →
+      confidence/flag, without needing to run any code himself.
+- [ ] **P.4 Accuracy comparison** — script comparing jev's suggested codes against the
+      manually-verified reference calculations, once provided. Scoped down from
+      2.7/3.8's full evaluation harness — just a % match and a list of mismatches,
+      not cost tracking or per-family breakdowns.
+      Done when: produces one number (accuracy %) + a mismatch list from real data.
+
+**Explicitly not in scope for Phase P**, even though it exists in this repo already:
+auth/RBAC enforcement, Docker/CI hardening, 3D viewer, rules engine + embeddings
+shortlist + LLM classifier (beyond jev alone), review/correction loop, export
+formatting, admin UI, production deployment. All of that is real, tested work — it's
+just scoped for *if* the client commits, not for proving the concept to them.
+
+---
+
 ## Phase 0 — Discovery tooling (week 1)
 Human work (client calls, wireframes) happens in parallel; Claude builds the tools.
 
