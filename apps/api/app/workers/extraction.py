@@ -4,8 +4,8 @@ Downloads the file from storage, extracts building elements (Phase 2.2) and thei
 quantities, and inserts both into the DB in batches. Quantities come from Qto sets
 (Phase 2.3) where present; geometry (Phase 2.4, ifcopenshell.geom — the only step that
 touches geometry, so it's the only one with any real memory/CPU cost) fills in only
-for elements with no Qto data at all, never overriding real Qto data.
-profile_text/group_hash are 2.5's.
+for elements with no Qto data at all, never overriding real Qto data. Each element also
+gets a profile_text and group_hash (Phase 2.5) once its quantities are known.
 """
 
 import tempfile
@@ -17,6 +17,7 @@ from app.db.models import Element, IfcFile, Job, Quantity
 from app.db.session import SessionLocal
 from app.ifc.extract import build_element_data, iter_supported_elements
 from app.ifc.geometry import compute_geometry_quantities
+from app.ifc.profile import build_profile_text, compute_group_hash
 from app.ifc.quantities import extract_quantities
 from app.storage import download_to_path
 
@@ -48,6 +49,11 @@ def process_ifc_file(job_id: int, ifc_file_id: int) -> None:
                 quantities_by_global_id[e.GlobalId] = (
                     qto_quantities if qto_quantities else compute_geometry_quantities(e)
                 )
+
+            for data in elements_data:
+                quantities = quantities_by_global_id[data["global_id"]]
+                data["profile_text"] = build_profile_text(data, quantities)
+                data["group_hash"] = compute_group_hash(data)
 
         total = len(elements_data)
         for start in range(0, total, BATCH_SIZE):
