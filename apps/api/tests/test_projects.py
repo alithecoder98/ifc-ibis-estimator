@@ -9,9 +9,10 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token, hash_password
-from app.db.models import IfcFile, Job, Project, User
+from app.db.models import Element, IfcFile, Job, User
 from app.db.session import SessionLocal
 from app.main import app
+from tests.conftest import cleanup_project_cascade
 
 client = TestClient(app)
 
@@ -34,21 +35,15 @@ def _login_as(user: User) -> None:
 
 
 def _cleanup_project(project_id: int) -> None:
-    db = SessionLocal()
-    ifc_file_ids = [
-        f.id for f in db.query(IfcFile).filter(IfcFile.project_id == project_id)
-    ]
-    if ifc_file_ids:
-        db.query(Job).filter(Job.ifc_file_id.in_(ifc_file_ids)).delete(
-            synchronize_session=False
-        )
-        db.query(IfcFile).filter(IfcFile.id.in_(ifc_file_ids)).delete(
-            synchronize_session=False
-        )
-    db.query(Job).filter(Job.project_id == project_id).delete()
-    db.query(Project).filter(Project.id == project_id).delete()
-    db.commit()
-    db.close()
+    """This file had its own copy of this logic for a long time, from back when
+    its tests only ever created Job/IfcFile/Project rows - never Element, so the
+    gap never surfaced. 4.5's element-detail tests are the first in this file to
+    create an Element directly, hit exactly the FK-violation class CLAUDE.md
+    warns about, and found a second, forgotten copy of the exact duplication the
+    shared cleanup_project_cascade() was built in Phase P to avoid. Delegating
+    here instead of maintaining a second copy of the fix.
+    """
+    cleanup_project_cascade(project_id)
 
 
 def _delete_user(user_id: int) -> None:
@@ -407,6 +402,103 @@ def test_list_elements_404_for_nonexistent_project() -> None:
         assert response.status_code == 404
     finally:
         client.cookies.clear()
+        _delete_user(user.id)
+
+
+def test_get_element_endpoint_returns_full_detail() -> None:
+    """get_element always calls the real embedder (see app/ai/element_detail.py's
+    module docstring - no "jev-only, stay offline" path here), so this
+    monkeypatches app.routers.projects.get_embedder the same way test_classify.py
+    monkeypatches classify.py's, to keep CI offline.
+    """
+    user = _create_user("estimator-4.5a@example.com", "estimator")
+    _login_as(user)
+    project_id = None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Element Detail Endpoint Project"}
+        ).json()["id"]
+
+        db = SessionLocal()
+        ifc_file = IfcFile(
+            project_id=project_id,
+            filename="x.ifc",
+            storage_key="unused",
+            size_bytes=1,
+            uploaded_by=user.id,
+        )
+        db.add(ifc_file)
+        db.flush()
+        element = Element(
+            ifc_file_id=ifc_file.id,
+            global_id="G1",
+            ifc_class="IfcWall",
+            profile_text="concrete exterior wall",
+        )
+        db.add(element)
+        db.commit()
+        element_id = element.id
+        db.close()
+
+        import app.routers.projects as projects_module
+        from app.ai.embedder import FakeEmbedder
+        from app.core.constants import EMBEDDING_DIM
+
+        original_get_embedder = projects_module.get_embedder
+        projects_module.get_embedder = lambda: FakeEmbedder(EMBEDDING_DIM)
+        try:
+            response = client.get(f"/projects/{project_id}/elements/{element_id}")
+        finally:
+            projects_module.get_embedder = original_get_embedder
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["global_id"] == "G1"
+        assert body["candidates"] == []  # no code_list rows seeded
+        assert body["reviews"] == []
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(user.id)
+
+
+def test_get_element_endpoint_404_for_element_in_wrong_project() -> None:
+    user = _create_user("estimator-4.5b@example.com", "estimator")
+    _login_as(user)
+    project_id, other_project_id = None, None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Element Detail 404 Project"}
+        ).json()["id"]
+        other_project_id = client.post(
+            "/projects", json={"name": "Element Detail 404 Other Project"}
+        ).json()["id"]
+
+        db = SessionLocal()
+        ifc_file = IfcFile(
+            project_id=project_id,
+            filename="x.ifc",
+            storage_key="unused",
+            size_bytes=1,
+            uploaded_by=user.id,
+        )
+        db.add(ifc_file)
+        db.flush()
+        element = Element(ifc_file_id=ifc_file.id, global_id="G1", ifc_class="IfcWall")
+        db.add(element)
+        db.commit()
+        element_id = element.id
+        db.close()
+
+        response = client.get(f"/projects/{other_project_id}/elements/{element_id}")
+        assert response.status_code == 404
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        if other_project_id is not None:
+            _cleanup_project(other_project_id)
         _delete_user(user.id)
 
 

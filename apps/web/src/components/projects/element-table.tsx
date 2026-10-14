@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ElementDetailSheet } from "@/components/projects/element-detail-sheet";
 import { statusBadge } from "@/lib/projects/status-badge";
 import { useProjectElements } from "@/lib/projects/use-project-elements";
 import type { components } from "@/lib/api/schema";
@@ -122,6 +123,9 @@ export function ElementTable({ projectId }: { projectId: number }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] =
     useState<VisibilityState>(DEFAULT_VISIBILITY);
+  const [selectedElementId, setSelectedElementId] = useState<number | null>(
+    null,
+  );
 
   // A fresh [] on every render (when elements is still undefined) would
   // defeat every useMemo below it, which all depend on this reference.
@@ -378,17 +382,23 @@ export function ElementTable({ projectId }: { projectId: number }) {
                       Group of {row.subRows.length} element(s)
                     </button>
                   ) : (
-                    row.getVisibleCells().map((cell) => (
-                      <div
-                        key={cell.id}
-                        className="min-w-32 flex-1 truncate px-2"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </div>
-                    ))
+                    <button
+                      type="button"
+                      onClick={() => setSelectedElementId(row.original.id)}
+                      className="hover:bg-muted flex h-full w-full items-center text-left"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <div
+                          key={cell.id}
+                          className="min-w-32 flex-1 truncate px-2"
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </div>
+                      ))}
+                    </button>
                   )}
                 </div>
               );
@@ -396,6 +406,14 @@ export function ElementTable({ projectId }: { projectId: number }) {
           </div>
         </div>
       </div>
+
+      <ElementDetailSheet
+        projectId={projectId}
+        elementId={selectedElementId}
+        onOpenChange={(open) => {
+          if (!open) setSelectedElementId(null);
+        }}
+      />
     </div>
   );
 }

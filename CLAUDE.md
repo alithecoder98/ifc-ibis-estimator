@@ -176,7 +176,7 @@ to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_
 Phase P and the decision log above for the full history.
 
 **Phase 3 — AI classification engine: fully complete (3.1–3.8).** Phase 2 (2.1–2.7)
-complete. **Phase 4 (frontend) in progress: 4.1–4.4 done.**
+complete. **Phase 4 (frontend) in progress: 4.1–4.5 done.**
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -540,10 +540,62 @@ downloaded all 18 real-world IFC files from
 [youshengCode/IfcSampleFiles](https://github.com/youshengCode/IfcSampleFiles)
 into `data/sample_ifc_files/` (~176MB, git-ignored) for manual larger-scale
 testing.
-**Next up:** Phase 4.5 — element detail panel (side panel on row click:
-properties, material layers, quantities with source, AI reasoning, candidates
-with scores, similar examples, review history). No open decisions block it,
-though review history will be empty (reviews don't exist until Phase 6.1,
-same honest-zero situation as 4.3's "corrected" count) and
-candidates/similar-examples need real `code_list`/`example_memory` data to be
-meaningfully non-empty.
+**This session:** 4.5 (element detail panel) done. New endpoint
+`GET /projects/{project_id}/elements/{element_id}`
+(`app/ai/element_detail.py`'s `get_element_detail()`): properties, material
+layers, quantities with source, the latest classification's AI reasoning,
+candidate codes with real cosine-similarity scores (new
+`shortlist_codes_with_scores()` in `app/ai/retrieval.py`, kept separate from
+the existing `shortlist_codes()` so `classify_with_llm()`/`compute_confidence()`
+stay untouched), similar past examples, and review history/comments (joined
+across *all* of the element's classifications, not just the latest).
+Candidates/examples are recomputed fresh against the element's current
+`profile_text` every call - nothing persists what was shown at classification
+time, consistent with how the rest of the project handles this. **This is the
+one feature that always calls the real embedder regardless of the project's
+`classification_engine` setting** (unlike `classify.py`'s jev-only "stay
+offline" path) - it needs to show candidates for any element on demand,
+documented in the module docstring. Frontend:
+`src/components/projects/element-detail-sheet.tsx` (a `Sheet`-based side panel,
+shadcn's Base UI component, unused since Phase 1) opens on element-table row
+click; `src/lib/projects/use-element-detail.ts` (disabled, not skipped, until
+an element is selected).
+**Two real bugs found, both pre-existing, neither introduced by this
+sub-phase's own code:** (1) `detail.element.ifc_file.project_id` isn't real -
+this codebase defines no ORM `relationship()`s anywhere, only plain FK columns
+(a recurring gotcha worth remembering generally, not specific to this
+sub-phase) - fixed to an explicit `db.get(IfcFile, ...)` query in the router.
+(2) `test_projects.py` had its **own separate, long-forgotten copy** of a
+`_cleanup_project()` helper - distinct from the shared
+`cleanup_project_cascade()` in `tests/conftest.py` - that never learned about
+the `Element` table. This sub-phase's new endpoint tests were the first in that
+file to create an `Element` directly, hit the exact FK-violation class this
+file already warns about above, and surfaced a second, independent instance of
+the duplication the shared helper exists specifically to avoid. Fixed by
+deleting the local copy's body and delegating to the shared helper instead.
+**Worth remembering generally: a test file having its own forgotten duplicate
+of a "shared" helper is its own bug class, separate from the shared helper
+itself being incomplete** - the fix for one doesn't catch the other.
+189/189 backend pytest (run twice, no leaks), `tsc --noEmit`/`eslint`/a real
+`pnpm build` all clean. **Verified live for real**: uploaded `real_sample.ifc`
+through the real pipeline (extract → classify) via a disposable test
+user/project against the real running API server (restarted with `--reload`
+first, since it had been running stale pre-session code - see the standing
+"a 200 OK doesn't confirm it's running today's code" note above, which applied
+to the API server itself this time, not just workers), got back real
+properties/quantities/materials from the real IFC file, a real jev-stub
+classification with its real `reasoning` string, and a correctly-empty
+candidates/examples result (confirmed by checking `GET /codes` - zero
+`CodeList` rows currently exist in this DB - so empty is the honest answer, not
+a bug). All live-test rows and the disposable user cleaned up afterward; full
+suite re-run clean afterward too. **Also found and cleaned up, unrelated to
+4.5's own code:** two more sets of leftover rows from earlier sessions' live
+tests that had never been cleaned up (`estimator-4.5a@/4.5b@example.com` from
+an earlier, pre-fix run of this sub-phase's own tests that failed before its
+`finally` block's cleanup could run; and a `dev@local.test` user +project from
+an earlier `AUTH_DISABLED` live-test session) - both were causing real,
+unrelated test failures (`UniqueViolation`/`ForeignKeyViolation`) until
+manually removed. Same honest gap as 4.1-4.4: no browser tool available, so the
+panel's actual open/close/scroll interaction was never click-tested.
+**Next up:** Phase 4.6 — Admin area (users/roles, code list import + browse,
+rules suggested/active, thresholds). No open decisions block it.

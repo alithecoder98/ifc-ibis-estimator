@@ -637,8 +637,51 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       `/data/*` rule - these are large public test files, not something to add
       to this repo's history) for manual larger-scale pipeline testing, distinct
       from the small git-tracked fixtures in `apps/api/tests/fixtures/`.
-- [ ] **4.5 Element detail panel** — properties, layers, quantities with source, AI reasoning,
+- [x] **4.5 Element detail panel** — properties, layers, quantities with source, AI reasoning,
       candidates with scores, similar examples, review history.
+      ✅ 2026-10-14 — New endpoint `GET /projects/{project_id}/elements/{element_id}`
+      (`app/ai/element_detail.py`'s `get_element_detail()`), returning properties,
+      material layers, quantities with source, the latest classification's AI
+      reasoning, candidate codes with real cosine-similarity scores
+      (`app/ai/retrieval.py`'s new `shortlist_codes_with_scores()`, kept separate
+      from the existing `shortlist_codes()` so `classify_with_llm()`/
+      `compute_confidence()` stay untouched), similar past examples, and review
+      history/comments (joined across *all* the element's classifications, not
+      just the latest). Candidates/examples are recomputed fresh against the
+      element's current `profile_text` every call - nothing persists what was
+      shown at classification time, a known simplification consistent with the
+      rest of the project. This is the one feature that always calls the real
+      embedder regardless of the project's `classification_engine` setting
+      (unlike `classify.py`'s jev-only "stay offline" path), since it needs to
+      show candidates for *any* element on demand - documented in the module
+      docstring. Frontend: a `Sheet`-based side panel (shadcn's Base UI
+      component, unused since Phase 1) opening on element-table row click,
+      `use-element-detail.ts` (disabled until an element is selected, not
+      skipped, so the sheet can mount before the first click).
+      **Two real bugs found and fixed, both pre-existing, neither introduced by
+      this sub-phase's own code:** (1) `detail.element.ifc_file.project_id` is
+      not real - this codebase has no ORM `relationship()`s anywhere, only
+      explicit FK columns, fixed to a plain `db.get(IfcFile, ...)` query in the
+      router; (2) `test_projects.py` had its own separate, long-forgotten copy of
+      a `_cleanup_project()` helper (distinct from the shared
+      `cleanup_project_cascade()` in `tests/conftest.py`) that never learned
+      about the `Element` table - this sub-phase's new endpoint tests were the
+      first in that file to create an `Element` directly, hit the exact
+      FK-violation class CLAUDE.md already warns about, and surfaced a second,
+      independent instance of the duplication the shared helper exists to avoid.
+      Fixed by delegating to the shared helper instead of patching the copy.
+      189/189 backend pytest (run twice, no leaks), `tsc --noEmit`/`eslint`/a
+      real `pnpm build` all clean. **Verified live for real**: uploaded
+      `real_sample.ifc` through the real pipeline (extract → classify) via a
+      disposable test user/project, hit the real endpoint over the real running
+      API with a real session cookie - real properties/quantities/materials from
+      the real IFC file, a real jev-stub classification with its real
+      `reasoning` string, and a real (empty, correctly so - zero `CodeList` rows
+      currently exist) candidates/examples result, proving the real-embedder
+      call path runs without error even when it finds nothing. All live-test
+      rows and the disposable user cleaned up afterward; full suite re-run
+      clean. Same honest gap as 4.1-4.4: no browser tool available, so the
+      panel's actual open/close/scroll interaction was never click-tested.
 - [ ] **4.6 Admin area** — users/roles, code list import + browse, rules (suggested/active), thresholds.
 - [ ] **4.7 UX polish** — keyboard shortcuts (A approve, C correct, J/K next/prev), empty/loading/error
       states, consistent design.

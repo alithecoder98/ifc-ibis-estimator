@@ -69,6 +69,39 @@ def shortlist_codes(
     return results
 
 
+def shortlist_codes_with_scores(
+    db: Session,
+    profile_text: str,
+    embedder: OllamaEmbedder,
+    family: str | None = None,
+    limit: int = 15,
+) -> list[tuple[CodeList, float]]:
+    """Same shortlist as shortlist_codes() (family-filtered, falls back to all
+    families if too few), but also returns each candidate's real cosine
+    similarity (1 - cosine_distance, so higher = closer) - built for Phase 4.5's
+    detail panel ("candidate codes with scores"). Kept separate from
+    shortlist_codes() rather than changing its return shape: classify_with_llm()
+    and compute_confidence() already depend on shortlist_codes() returning plain
+    CodeList objects, and this avoids touching that tested code at all.
+    """
+    [query_vector] = embedder.embed([profile_text])
+
+    def _search(filter_family: str | None) -> list[tuple[CodeList, float]]:
+        q = db.query(CodeList, CodeList.embedding.cosine_distance(query_vector))
+        if filter_family is not None:
+            q = q.filter(CodeList.family == filter_family)
+        return (
+            q.order_by(CodeList.embedding.cosine_distance(query_vector))
+            .limit(limit)
+            .all()
+        )
+
+    results = _search(family)
+    if family is not None and len(results) < limit:
+        results = _search(None)
+    return [(code, 1.0 - distance) for code, distance in results]
+
+
 def similar_examples(
     db: Session, profile_text: str, embedder: OllamaEmbedder, limit: int = 5
 ) -> list[ExampleMemory]:

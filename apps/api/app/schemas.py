@@ -27,6 +27,76 @@ class ElementRowOut(BaseModel):
     status: str | None
 
 
+class QuantityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    quantity_type: str
+    value: float
+    unit: str
+    source: str
+
+
+class CandidateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ibis_code: str
+    internal_element: str
+    description: str | None
+    score: float
+
+
+class SimilarExampleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    profile_text: str
+    final_ibis_code: str
+    final_internal_element: str
+
+
+class ReviewOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    action: str
+    comment: str | None
+    created_at: datetime
+    user_email: str
+
+
+class ClassificationDetailOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ibis_code: str | None
+    internal_element: str | None
+    reasoning: str | None
+    self_score: float | None
+    confidence: float | None
+    flags: list[str] | None
+    status: str
+    source: str
+    agreement: bool | None
+
+
+class ElementDetailOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    global_id: str
+    name: str | None
+    ifc_class: str
+    predefined_type: str | None
+    object_type: str | None
+    storey: str | None
+    is_external: bool | None
+    load_bearing: bool | None
+    psets: dict | None
+    materials: list[dict] | None
+    quantities: list[QuantityOut]
+    classification: ClassificationDetailOut | None
+    candidates: list[CandidateOut]
+    similar_examples: list[SimilarExampleOut]
+    reviews: list[ReviewOut]
+
+
 class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

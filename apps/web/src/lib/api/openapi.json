@@ -536,6 +536,55 @@
         }
       }
     },
+    "/projects/{project_id}/elements/{element_id}": {
+      "get": {
+        "tags": ["projects"],
+        "summary": "Get Element",
+        "description": "Phase 4.5 - the side panel on row click: properties, material layers,\nquantities with source, AI reasoning, candidate codes with real\ncosine-similarity scores, similar past examples, review history. Candidates/\nexamples are recomputed fresh against this element's current profile (see\napp/ai/element_detail.py's module docstring for why) - this always calls the\nreal embedder, regardless of the project's classification_engine setting.",
+        "operationId": "get_element_projects__project_id__elements__element_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "element_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Element Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ElementDetailOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/export": {
       "get": {
         "tags": ["projects"],
@@ -1110,6 +1159,70 @@
         "required": ["file"],
         "title": "Body_upload_ifc_file_projects__project_id__files_post"
       },
+      "CandidateOut": {
+        "properties": {
+          "ibis_code": { "type": "string", "title": "Ibis Code" },
+          "internal_element": { "type": "string", "title": "Internal Element" },
+          "description": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Description"
+          },
+          "score": { "type": "number", "title": "Score" }
+        },
+        "type": "object",
+        "required": ["ibis_code", "internal_element", "description", "score"],
+        "title": "CandidateOut"
+      },
+      "ClassificationDetailOut": {
+        "properties": {
+          "ibis_code": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Ibis Code"
+          },
+          "internal_element": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Internal Element"
+          },
+          "reasoning": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Reasoning"
+          },
+          "self_score": {
+            "anyOf": [{ "type": "number" }, { "type": "null" }],
+            "title": "Self Score"
+          },
+          "confidence": {
+            "anyOf": [{ "type": "number" }, { "type": "null" }],
+            "title": "Confidence"
+          },
+          "flags": {
+            "anyOf": [
+              { "items": { "type": "string" }, "type": "array" },
+              { "type": "null" }
+            ],
+            "title": "Flags"
+          },
+          "status": { "type": "string", "title": "Status" },
+          "source": { "type": "string", "title": "Source" },
+          "agreement": {
+            "anyOf": [{ "type": "boolean" }, { "type": "null" }],
+            "title": "Agreement"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ibis_code",
+          "internal_element",
+          "reasoning",
+          "self_score",
+          "confidence",
+          "flags",
+          "status",
+          "source",
+          "agreement"
+        ],
+        "title": "ClassificationDetailOut"
+      },
       "CodeListOut": {
         "properties": {
           "id": { "type": "integer", "title": "Id" },
@@ -1167,6 +1280,100 @@
           "element_count"
         ],
         "title": "CodeTotalOut"
+      },
+      "ElementDetailOut": {
+        "properties": {
+          "id": { "type": "integer", "title": "Id" },
+          "global_id": { "type": "string", "title": "Global Id" },
+          "name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Name"
+          },
+          "ifc_class": { "type": "string", "title": "Ifc Class" },
+          "predefined_type": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Predefined Type"
+          },
+          "object_type": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Object Type"
+          },
+          "storey": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Storey"
+          },
+          "is_external": {
+            "anyOf": [{ "type": "boolean" }, { "type": "null" }],
+            "title": "Is External"
+          },
+          "load_bearing": {
+            "anyOf": [{ "type": "boolean" }, { "type": "null" }],
+            "title": "Load Bearing"
+          },
+          "psets": {
+            "anyOf": [
+              { "additionalProperties": true, "type": "object" },
+              { "type": "null" }
+            ],
+            "title": "Psets"
+          },
+          "materials": {
+            "anyOf": [
+              {
+                "items": { "additionalProperties": true, "type": "object" },
+                "type": "array"
+              },
+              { "type": "null" }
+            ],
+            "title": "Materials"
+          },
+          "quantities": {
+            "items": { "$ref": "#/components/schemas/QuantityOut" },
+            "type": "array",
+            "title": "Quantities"
+          },
+          "classification": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/ClassificationDetailOut" },
+              { "type": "null" }
+            ]
+          },
+          "candidates": {
+            "items": { "$ref": "#/components/schemas/CandidateOut" },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "similar_examples": {
+            "items": { "$ref": "#/components/schemas/SimilarExampleOut" },
+            "type": "array",
+            "title": "Similar Examples"
+          },
+          "reviews": {
+            "items": { "$ref": "#/components/schemas/ReviewOut" },
+            "type": "array",
+            "title": "Reviews"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "global_id",
+          "name",
+          "ifc_class",
+          "predefined_type",
+          "object_type",
+          "storey",
+          "is_external",
+          "load_bearing",
+          "psets",
+          "materials",
+          "quantities",
+          "classification",
+          "candidates",
+          "similar_examples",
+          "reviews"
+        ],
+        "title": "ElementDetailOut"
       },
       "ElementRowOut": {
         "properties": {
@@ -1392,6 +1599,35 @@
         "required": ["missing_quantity", "proxy_element", "unmapped"],
         "title": "ProjectWarningsOut"
       },
+      "QuantityOut": {
+        "properties": {
+          "quantity_type": { "type": "string", "title": "Quantity Type" },
+          "value": { "type": "number", "title": "Value" },
+          "unit": { "type": "string", "title": "Unit" },
+          "source": { "type": "string", "title": "Source" }
+        },
+        "type": "object",
+        "required": ["quantity_type", "value", "unit", "source"],
+        "title": "QuantityOut"
+      },
+      "ReviewOut": {
+        "properties": {
+          "action": { "type": "string", "title": "Action" },
+          "comment": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Comment"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "user_email": { "type": "string", "title": "User Email" }
+        },
+        "type": "object",
+        "required": ["action", "comment", "created_at", "user_email"],
+        "title": "ReviewOut"
+      },
       "RuleCondition": {
         "properties": {
           "field": {
@@ -1513,6 +1749,23 @@
         },
         "type": "object",
         "title": "RuleUpdate"
+      },
+      "SimilarExampleOut": {
+        "properties": {
+          "profile_text": { "type": "string", "title": "Profile Text" },
+          "final_ibis_code": { "type": "string", "title": "Final Ibis Code" },
+          "final_internal_element": {
+            "type": "string",
+            "title": "Final Internal Element"
+          }
+        },
+        "type": "object",
+        "required": [
+          "profile_text",
+          "final_ibis_code",
+          "final_internal_element"
+        ],
+        "title": "SimilarExampleOut"
       },
       "UserOut": {
         "properties": {

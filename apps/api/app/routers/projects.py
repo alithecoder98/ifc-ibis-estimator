@@ -15,7 +15,9 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.ai.element_detail import get_element_detail
 from app.ai.elements import ElementRow, list_element_rows
+from app.ai.embedder import get_embedder
 from app.ai.export import build_export_csv
 from app.ai.summary import compute_summary
 from app.core.deps import require_role
@@ -30,6 +32,7 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.schemas import (
+    ElementDetailOut,
     ElementRowOut,
     IfcFileOut,
     ProjectCreate,
@@ -280,6 +283,49 @@ def list_elements(
             status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
         )
     return list_element_rows(db, project_id)
+
+
+@router.get("/{project_id}/elements/{element_id}", response_model=ElementDetailOut)
+def get_element(
+    project_id: int,
+    element_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator", "viewer")),
+) -> ElementDetailOut:
+    """Phase 4.5 - the side panel on row click: properties, material layers,
+    quantities with source, AI reasoning, candidate codes with real
+    cosine-similarity scores, similar past examples, review history. Candidates/
+    examples are recomputed fresh against this element's current profile (see
+    app/ai/element_detail.py's module docstring for why) - this always calls the
+    real embedder, regardless of the project's classification_engine setting.
+    """
+    detail = get_element_detail(db, element_id, get_embedder())
+    ifc_file = (
+        db.get(IfcFile, detail.element.ifc_file_id) if detail is not None else None
+    )
+    if detail is None or ifc_file is None or ifc_file.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="element not found"
+        )
+
+    return ElementDetailOut(
+        id=detail.element.id,
+        global_id=detail.element.global_id,
+        name=detail.element.name,
+        ifc_class=detail.element.ifc_class,
+        predefined_type=detail.element.predefined_type,
+        object_type=detail.element.object_type,
+        storey=detail.element.storey,
+        is_external=detail.element.is_external,
+        load_bearing=detail.element.load_bearing,
+        psets=detail.element.psets,
+        materials=detail.element.materials,
+        quantities=detail.quantities,
+        classification=detail.classification,
+        candidates=detail.candidates,
+        similar_examples=detail.similar_examples,
+        reviews=detail.reviews,
+    )
 
 
 @router.get("/{project_id}/export")

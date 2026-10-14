@@ -228,6 +228,31 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/projects/{project_id}/elements/{element_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Element
+     * @description Phase 4.5 - the side panel on row click: properties, material layers,
+     *     quantities with source, AI reasoning, candidate codes with real
+     *     cosine-similarity scores, similar past examples, review history. Candidates/
+     *     examples are recomputed fresh against this element's current profile (see
+     *     app/ai/element_detail.py's module docstring for why) - this always calls the
+     *     real embedder, regardless of the project's classification_engine setting.
+     */
+    get: operations["get_element_projects__project_id__elements__element_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/projects/{project_id}/export": {
     parameters: {
       query?: never;
@@ -413,6 +438,38 @@ export interface components {
       /** File */
       file: string;
     };
+    /** CandidateOut */
+    CandidateOut: {
+      /** Ibis Code */
+      ibis_code: string;
+      /** Internal Element */
+      internal_element: string;
+      /** Description */
+      description: string | null;
+      /** Score */
+      score: number;
+    };
+    /** ClassificationDetailOut */
+    ClassificationDetailOut: {
+      /** Ibis Code */
+      ibis_code: string | null;
+      /** Internal Element */
+      internal_element: string | null;
+      /** Reasoning */
+      reasoning: string | null;
+      /** Self Score */
+      self_score: number | null;
+      /** Confidence */
+      confidence: number | null;
+      /** Flags */
+      flags: string[] | null;
+      /** Status */
+      status: string;
+      /** Source */
+      source: string;
+      /** Agreement */
+      agreement: boolean | null;
+    };
     /** CodeListOut */
     CodeListOut: {
       /** Id */
@@ -447,6 +504,46 @@ export interface components {
       quantity: number;
       /** Element Count */
       element_count: number;
+    };
+    /** ElementDetailOut */
+    ElementDetailOut: {
+      /** Id */
+      id: number;
+      /** Global Id */
+      global_id: string;
+      /** Name */
+      name: string | null;
+      /** Ifc Class */
+      ifc_class: string;
+      /** Predefined Type */
+      predefined_type: string | null;
+      /** Object Type */
+      object_type: string | null;
+      /** Storey */
+      storey: string | null;
+      /** Is External */
+      is_external: boolean | null;
+      /** Load Bearing */
+      load_bearing: boolean | null;
+      /** Psets */
+      psets: {
+        [key: string]: unknown;
+      } | null;
+      /** Materials */
+      materials:
+        | {
+            [key: string]: unknown;
+          }[]
+        | null;
+      /** Quantities */
+      quantities: components["schemas"]["QuantityOut"][];
+      classification: components["schemas"]["ClassificationDetailOut"] | null;
+      /** Candidates */
+      candidates: components["schemas"]["CandidateOut"][];
+      /** Similar Examples */
+      similar_examples: components["schemas"]["SimilarExampleOut"][];
+      /** Reviews */
+      reviews: components["schemas"]["ReviewOut"][];
     };
     /** ElementRowOut */
     ElementRowOut: {
@@ -587,6 +684,31 @@ export interface components {
       /** Unmapped */
       unmapped: number;
     };
+    /** QuantityOut */
+    QuantityOut: {
+      /** Quantity Type */
+      quantity_type: string;
+      /** Value */
+      value: number;
+      /** Unit */
+      unit: string;
+      /** Source */
+      source: string;
+    };
+    /** ReviewOut */
+    ReviewOut: {
+      /** Action */
+      action: string;
+      /** Comment */
+      comment: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** User Email */
+      user_email: string;
+    };
     /** RuleCondition */
     RuleCondition: {
       /**
@@ -663,6 +785,15 @@ export interface components {
       priority?: number | null;
       /** Status */
       status?: ("suggested" | "active") | null;
+    };
+    /** SimilarExampleOut */
+    SimilarExampleOut: {
+      /** Profile Text */
+      profile_text: string;
+      /** Final Ibis Code */
+      final_ibis_code: string;
+      /** Final Internal Element */
+      final_internal_element: string;
     };
     /** UserOut */
     UserOut: {
@@ -1117,6 +1248,40 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ElementRowOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_element_projects__project_id__elements__element_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        element_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ElementDetailOut"];
         };
       };
       /** @description Validation Error */
