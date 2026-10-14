@@ -33,10 +33,13 @@ def gather_scored_rows(
     for element in elements:
         if element.global_id not in ground_truth:
             continue
+        # id DESC as a tiebreak: an engine="both" run commits its llm and jev
+        # rows together, so created_at alone isn't reliably ordered (found in
+        # Phase 4.3 while building the same "latest classification" lookup).
         classification = (
             db.query(Classification)
             .filter(Classification.element_id == element.id)
-            .order_by(Classification.created_at.desc())
+            .order_by(Classification.created_at.desc(), Classification.id.desc())
             .first()
         )
         if classification is None or classification.confidence is None:

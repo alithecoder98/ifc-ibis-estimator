@@ -16,6 +16,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.ai.export import build_export_csv
+from app.ai.summary import compute_summary
 from app.core.deps import require_role
 from app.db.models import (
     Classification,
@@ -27,7 +28,13 @@ from app.db.models import (
     User,
 )
 from app.db.session import get_db
-from app.schemas import IfcFileOut, ProjectCreate, ProjectOut, ProjectUpdate
+from app.schemas import (
+    IfcFileOut,
+    ProjectCreate,
+    ProjectOut,
+    ProjectSummaryOut,
+    ProjectUpdate,
+)
 from app.storage import download_bytes, upload_fileobj
 from app.workers.classification import reclassify_ifc_file
 from app.workers.extraction import process_ifc_file
@@ -212,6 +219,45 @@ def list_files(
         .all()
     )
     return [_ifc_file_out(db, f) for f in ifc_files]
+
+
+@router.get("/{project_id}/summary", response_model=ProjectSummaryOut)
+def get_project_summary(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator", "viewer")),
+) -> ProjectSummaryOut:
+    """Phase 4.3 - the Overview tab's stat cards, totals-per-code table, and
+    warnings panel. `corrected` is always 0 today - no review/correction
+    endpoint exists yet (Phase 6.1); an honest zero, not thin test data.
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
+    summary = compute_summary(db, project_id)
+    return ProjectSummaryOut(
+        total_elements=summary.total_elements,
+        auto_accepted=summary.auto_accepted,
+        needs_review=summary.needs_review,
+        corrected=summary.corrected,
+        warnings={
+            "missing_quantity": summary.missing_quantity_count,
+            "proxy_element": summary.proxy_element_count,
+            "unmapped": summary.unmapped_count,
+        },
+        totals_by_code=[
+            {
+                "ibis_code": t.ibis_code,
+                "internal_element": t.internal_element,
+                "unit": t.unit,
+                "quantity": t.quantity,
+                "element_count": t.element_count,
+            }
+            for t in summary.totals_by_code
+        ],
+    )
 
 
 @router.get("/{project_id}/export")

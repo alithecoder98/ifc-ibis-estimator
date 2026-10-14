@@ -557,8 +557,45 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       overwritten mid-test by the worker actually processing its job for real.
       Standing rule, now doubly confirmed: stop the worker *before* every
       pytest run, not just after a restart.
-- [ ] **4.3 Results overview** — counts (total, auto-accepted, to review, corrected), totals per IBIS
+- [x] **4.3 Results overview** — counts (total, auto-accepted, to review, corrected), totals per IBIS
       code, warnings panel.
+      ✅ 2026-10-14 — `app/ai/summary.py` + `GET /projects/{project_id}/summary`.
+      `corrected` is always `0` today, honestly - no review/correction endpoint
+      exists yet (`Review`'s own model docstring says Phase 6.1), so this is a
+      mechanism that's real now and will report real counts once 6.1 ships, not
+      thin test data. Totals-by-code picks exactly **one** quantity per element
+      (net > gross > length > count precedence) to avoid double-counting a
+      wall's net+gross area as two separate measures of the same physical
+      quantity; warnings reuse 3.6's existing flag vocabulary
+      (`missing_quantity`, `proxy_element`) plus `ibis_code IS NULL` for
+      "unmapped" rather than inventing new detection logic.
+      **A real correctness gap found and fixed while building this:** "latest
+      classification per element" (used here and already in
+      `calibrate.py`/`evaluate.py`) wasn't tie-broken when two rows share a
+      `created_at` - which happens for real whenever `classification_engine`
+      is `"both"`, since both rows commit together. Added `id DESC` as a
+      deterministic secondary sort to all three call sites.
+      **A real bug caught by the new tests, not by inspection:** `Quantity.value`
+      is `NUMERIC(14,4)`, so psycopg hands back a real `decimal.Decimal` despite
+      the model's `Mapped[float]` hint - summing it into a plain float
+      accumulator raised `TypeError` the first time a test actually exercised
+      two quantities on one element. Fixed with an explicit `float()` cast.
+      **A real test-cleanup gap, the same class CLAUDE.md already warns about:**
+      `Review` is used by a test for the first time ever in this codebase, and
+      `cleanup_project_cascade()` didn't know about it - cleanup hit a foreign
+      key violation and silently left a project/user stuck, which then broke
+      an unrelated later test via a duplicated email. Fixed in the one shared
+      function, per that same standing rule.
+      Frontend: `useProjectSummary`, four stat cards, a warnings panel, and a
+      totals-by-code table using a plain shadcn `table` (not TanStack Table -
+      that's 4.4's dependency to introduce for the much larger Elements
+      table). 177/177 backend pytest (run twice, no leaks), `tsc`/`eslint`/a
+      real `pnpm build` all clean. **Verified live for real**: seeded real
+      elements/quantities/classifications/a review directly, hit the real
+      endpoint with real auth, and every number in the response matched what
+      was seeded exactly (including the net-only 65.75m2 total, not
+      double-counted). Same honest gap as 4.1/4.2: no browser tool available,
+      so the rendered cards/table were never click-tested.
 - [ ] **4.4 Element table** — virtualised, filters (status, confidence, family, storey), sort, search,
       group by element type, column picker; handles 5,000+ rows smoothly.
 - [ ] **4.5 Element detail panel** — properties, layers, quantities with source, AI reasoning,

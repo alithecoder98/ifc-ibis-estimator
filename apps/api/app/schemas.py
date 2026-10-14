@@ -18,6 +18,31 @@ class JobOut(BaseModel):
     error: str | None
 
 
+class CodeTotalOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ibis_code: str
+    internal_element: str
+    unit: str | None
+    quantity: float
+    element_count: int
+
+
+class ProjectWarningsOut(BaseModel):
+    missing_quantity: int
+    proxy_element: int
+    unmapped: int
+
+
+class ProjectSummaryOut(BaseModel):
+    total_elements: int
+    auto_accepted: int
+    needs_review: int
+    corrected: int
+    warnings: ProjectWarningsOut
+    totals_by_code: list[CodeTotalOut]
+
+
 class ProjectCreate(BaseModel):
     name: str
 

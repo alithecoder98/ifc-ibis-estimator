@@ -18,6 +18,7 @@ from app.db.models import (
     Job,
     Project,
     Quantity,
+    Review,
     User,
 )
 from app.db.session import SessionLocal
@@ -36,9 +37,11 @@ def cleanup_project_cascade(project_id: int, user_id: int | None = None) -> None
     project -> user.
 
     One shared helper instead of a `_cleanup()` copy per test file — every new table
-    that FKs onto `elements` (quantities in 2.3, classifications in Phase P) or
-    straight onto `projects` (example_memory, added in 3.3's tests) has broken this
-    logic at least once. Update this one function when that happens again, not four.
+    that FKs onto `elements` (quantities in 2.3, classifications in Phase P),
+    `classifications` (reviews, in 4.3's tests - the Review model's first-ever test
+    use), or straight onto `projects` (example_memory, added in 3.3's tests) has
+    broken this logic at least once. Update this one function when that happens
+    again, not four.
     """
     db = SessionLocal()
     try:
@@ -54,6 +57,16 @@ def cleanup_project_cascade(project_id: int, user_id: int | None = None) -> None
                 db.query(Quantity).filter(Quantity.element_id.in_(element_ids)).delete(
                     synchronize_session=False
                 )
+                classification_ids = [
+                    c.id
+                    for c in db.query(Classification).filter(
+                        Classification.element_id.in_(element_ids)
+                    )
+                ]
+                if classification_ids:
+                    db.query(Review).filter(
+                        Review.classification_id.in_(classification_ids)
+                    ).delete(synchronize_session=False)
                 db.query(Classification).filter(
                     Classification.element_id.in_(element_ids)
                 ).delete(synchronize_session=False)

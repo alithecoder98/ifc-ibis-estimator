@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExportButton } from "@/components/projects/export-button";
 import { ProjectDialog } from "@/components/projects/project-dialog";
+import { ResultsOverview } from "@/components/projects/results-overview";
 import { UploadDropzone } from "@/components/projects/upload-dropzone";
 import { statusBadge } from "@/lib/projects/status-badge";
 import { useProject } from "@/lib/projects/use-project";
@@ -68,6 +69,8 @@ export default function ProjectDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          <ResultsOverview projectId={projectId} />
 
           <UploadDropzone projectId={projectId} />
 

@@ -176,7 +176,7 @@ to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_
 Phase P and the decision log above for the full history.
 
 **Phase 3 — AI classification engine: fully complete (3.1–3.8).** Phase 2 (2.1–2.7)
-complete. **Phase 4 (frontend) in progress: 4.1–4.2 done.**
+complete. **Phase 4 (frontend) in progress: 4.1–4.3 done.**
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -258,7 +258,13 @@ build` check.
 each new table (quantities → elements, in 2.3) breaks any existing test cleanup that
 doesn't know about it, causing silent row leaks that surface later as confusing
 UNIQUE-constraint failures in unrelated tests. When adding a table with a new FK,
-grep existing `_cleanup()` helpers for the table it references.
+grep existing `_cleanup()` helpers for the table it references. **This isn't only
+about brand-new tables** - `reviews` has existed since the original 1.3 schema but
+was never exercised by a single test until 4.3's `corrected` count needed one,
+and the exact same gap was there, just never triggered. When a test is about to
+be the *first* one anywhere to touch a given table, that's also the moment to
+check `cleanup_project_cascade()` knows about it - not just when the table itself
+is new.
 **Correction to an earlier assumption:** Phase 2's engineering sub-phases (2.1–2.6) do
 **not** need the client's real IFC files/code lists — test fixtures are enough (see
 `apps/api/tests/fixtures/README.md`: a synthetic one covering all 12 supported element
@@ -483,9 +489,31 @@ of itself**: started a live worker for this verification, forgot to stop it
 before the next `pytest` run, got the exact 3.7-shaped race again. Standing
 rule reinforced, not just re-learned: stop the worker *before* every pytest
 run, not only after a restart.
-**Next up:** Phase 4.3 — results overview (cards for total/auto-accepted/
-needs-review/corrected counts, a table of totals per IBIS code, a warnings
-panel for missing quantities/proxies/unmapped elements). No open decisions
-block it, though the counts will be genuinely small/uninteresting until a
-real project with real classifications exists to look at - same "mechanism
-is real, data is thin" situation as every self-tested-only backend sub-phase.
+**Also this session:** 4.3 (results overview) done. `app/ai/summary.py` +
+`GET /projects/{project_id}/summary`: `corrected` is always `0` (honest -
+reviews don't exist until Phase 6.1); totals-by-code picks exactly one
+quantity per element (net > gross > length > count) to avoid double-counting;
+warnings reuse 3.6's existing flags rather than new detection logic. **Three
+real bugs found while building this, all fixed:** (1) "latest classification
+per element" (here and already in `calibrate.py`/`evaluate.py`) wasn't
+tie-broken on `created_at` ties, which `engine="both"` produces for real -
+added `id DESC` to all three. (2) `Quantity.value` is `NUMERIC(14,4)`, so
+psycopg returns a real `Decimal` despite the `Mapped[float]` hint - summing
+it into a float accumulator raised `TypeError`; fixed with an explicit cast.
+(3) `reviews` has existed since 1.3 but no test had ever touched it before -
+`cleanup_project_cascade()` didn't know about it either, hit an FK violation,
+and silently left stuck data (see the strengthened "Test cleanup helpers"
+note above). Frontend: stat cards, warnings panel, a totals table via a
+plain shadcn `table` (not TanStack Table - that's 4.4's own dependency to
+introduce). 177/177 backend pytest, `tsc`/`eslint`/`pnpm build` clean.
+**Verified live for real**: seeded real rows directly, hit the real endpoint,
+every number matched exactly what was seeded. Same honest gap as 4.1/4.2: no
+browser tool available, so the rendered UI wasn't click-tested.
+**Next up:** Phase 4.4 — element table (TanStack Table with virtualisation;
+columns for element/class/storey/material/quantity/code/confidence/status;
+filters for status/confidence/family/storey; search, sort, group by
+`group_hash`). **New dependency this will need:** `@tanstack/react-table`
+(and a virtualization library, e.g. `@tanstack/react-virtual`) - neither
+installed yet. No open decisions block it, though there's still no endpoint
+to list a project's elements at all - that's this sub-phase's job to add,
+same pattern as 4.1's missing files-list and 4.2's missing job_id.

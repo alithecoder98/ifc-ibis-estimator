@@ -182,6 +182,28 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/projects/{project_id}/summary": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Project Summary
+     * @description Phase 4.3 - the Overview tab's stat cards, totals-per-code table, and
+     *     warnings panel. `corrected` is always 0 today - no review/correction
+     *     endpoint exists yet (Phase 6.1); an honest zero, not thin test data.
+     */
+    get: operations["get_project_summary_projects__project_id__summary_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/projects/{project_id}/export": {
     parameters: {
       query?: never;
@@ -389,6 +411,19 @@ export interface components {
        */
       created_at: string;
     };
+    /** CodeTotalOut */
+    CodeTotalOut: {
+      /** Ibis Code */
+      ibis_code: string;
+      /** Internal Element */
+      internal_element: string;
+      /** Unit */
+      unit: string | null;
+      /** Quantity */
+      quantity: number;
+      /** Element Count */
+      element_count: number;
+    };
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -467,12 +502,35 @@ export interface components {
        */
       updated_at: string;
     };
+    /** ProjectSummaryOut */
+    ProjectSummaryOut: {
+      /** Total Elements */
+      total_elements: number;
+      /** Auto Accepted */
+      auto_accepted: number;
+      /** Needs Review */
+      needs_review: number;
+      /** Corrected */
+      corrected: number;
+      warnings: components["schemas"]["ProjectWarningsOut"];
+      /** Totals By Code */
+      totals_by_code: components["schemas"]["CodeTotalOut"][];
+    };
     /** ProjectUpdate */
     ProjectUpdate: {
       /** Name */
       name?: string | null;
       /** Classification Engine */
       classification_engine?: ("llm" | "jev" | "both") | null;
+    };
+    /** ProjectWarningsOut */
+    ProjectWarningsOut: {
+      /** Missing Quantity */
+      missing_quantity: number;
+      /** Proxy Element */
+      proxy_element: number;
+      /** Unmapped */
+      unmapped: number;
     };
     /** RuleCondition */
     RuleCondition: {
@@ -938,6 +996,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IfcFileOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_project_summary_projects__project_id__summary_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectSummaryOut"];
         };
       };
       /** @description Validation Error */

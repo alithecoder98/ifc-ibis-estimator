@@ -446,6 +446,49 @@
         }
       }
     },
+    "/projects/{project_id}/summary": {
+      "get": {
+        "tags": ["projects"],
+        "summary": "Get Project Summary",
+        "description": "Phase 4.3 - the Overview tab's stat cards, totals-per-code table, and\nwarnings panel. `corrected` is always 0 today - no review/correction\nendpoint exists yet (Phase 6.1); an honest zero, not thin test data.",
+        "operationId": "get_project_summary_projects__project_id__summary_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectSummaryOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/export": {
       "get": {
         "tags": ["projects"],
@@ -1057,6 +1100,27 @@
         ],
         "title": "CodeListOut"
       },
+      "CodeTotalOut": {
+        "properties": {
+          "ibis_code": { "type": "string", "title": "Ibis Code" },
+          "internal_element": { "type": "string", "title": "Internal Element" },
+          "unit": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Unit"
+          },
+          "quantity": { "type": "number", "title": "Quantity" },
+          "element_count": { "type": "integer", "title": "Element Count" }
+        },
+        "type": "object",
+        "required": [
+          "ibis_code",
+          "internal_element",
+          "unit",
+          "quantity",
+          "element_count"
+        ],
+        "title": "CodeTotalOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1164,6 +1228,30 @@
         ],
         "title": "ProjectOut"
       },
+      "ProjectSummaryOut": {
+        "properties": {
+          "total_elements": { "type": "integer", "title": "Total Elements" },
+          "auto_accepted": { "type": "integer", "title": "Auto Accepted" },
+          "needs_review": { "type": "integer", "title": "Needs Review" },
+          "corrected": { "type": "integer", "title": "Corrected" },
+          "warnings": { "$ref": "#/components/schemas/ProjectWarningsOut" },
+          "totals_by_code": {
+            "items": { "$ref": "#/components/schemas/CodeTotalOut" },
+            "type": "array",
+            "title": "Totals By Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_elements",
+          "auto_accepted",
+          "needs_review",
+          "corrected",
+          "warnings",
+          "totals_by_code"
+        ],
+        "title": "ProjectSummaryOut"
+      },
       "ProjectUpdate": {
         "properties": {
           "name": {
@@ -1180,6 +1268,19 @@
         },
         "type": "object",
         "title": "ProjectUpdate"
+      },
+      "ProjectWarningsOut": {
+        "properties": {
+          "missing_quantity": {
+            "type": "integer",
+            "title": "Missing Quantity"
+          },
+          "proxy_element": { "type": "integer", "title": "Proxy Element" },
+          "unmapped": { "type": "integer", "title": "Unmapped" }
+        },
+        "type": "object",
+        "required": ["missing_quantity", "proxy_element", "unmapped"],
+        "title": "ProjectWarningsOut"
       },
       "RuleCondition": {
         "properties": {
