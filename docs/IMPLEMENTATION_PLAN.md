@@ -682,11 +682,61 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       rows and the disposable user cleaned up afterward; full suite re-run
       clean. Same honest gap as 4.1-4.4: no browser tool available, so the
       panel's actual open/close/scroll interaction was never click-tested.
-- [ ] **4.6 Admin area** — code list import + browse, rules (suggested/active), thresholds.
+- [x] **4.6 Admin area** — code list import + browse, rules (suggested/active), thresholds.
       Scope narrowed 2026-10-14: the originally-planned "users/roles" screen is
       dropped — see CLAUDE.md's decision log entry of that date (RBAC/login out
       of scope for now, disabled via the existing `AUTH_DISABLED` toggle rather
-      than deleted, fully reversible). Not started yet.
+      than deleted, fully reversible).
+      ✅ 2026-10-14 — The only genuinely new backend piece: a minimal DB-backed
+      `app_settings` key/value table (new migration `9a32c198ebc5`) so the
+      confidence threshold is admin-editable *and* takes effect immediately -
+      `app/core/settings_store.py`'s `get_/set_auto_accept_threshold()`, falling
+      back to the env-sourced `settings.auto_accept_threshold` when no row
+      exists yet. `GET/PATCH /settings/threshold` (PATCH admin-only).
+      `classify.py` now reads the DB-backed value once per `classify_elements()`
+      call (not per element/group) and passes it into `compute_confidence()`,
+      so a saved threshold change affects the very next classification run with
+      no restart - proven by a dedicated integration test
+      (`test_classify_elements_uses_db_threshold_override`) that scores the
+      same inputs as an existing 3.5 test (self_score 0.9 → 0.85 final
+      confidence, `auto_accepted` at the 0.8 default) and shows raising the
+      DB-backed threshold above 0.85 flips the *same* element to
+      `needs_review`. Code-list import/browse and rules CRUD needed **no**
+      backend changes at all - both already existed from 3.1/3.2; this
+      sub-phase only built the frontend on top of them. Frontend: `/admin`
+      rebuilt with tabs (Code lists / Rules / Threshold, reusing the shadcn
+      `tabs` already in use on `/projects/[id]`) - a code-list upload form +
+      family-filtered browse/search table, a rules table with a create/edit
+      dialog (a small condition-builder: field/operator/value rows, add/remove,
+      covering all 7 condition fields and all 3 operators including `between`'s
+      two-number range) plus activate/suggest toggle and delete, and a
+      threshold form. New hooks under `src/lib/admin/`. Codes import uses plain
+      `fetch` + `FormData`, not the typed `apiClient`, for the same reason
+      `use-upload-file.ts` does (the generated body type for a multipart
+      `UploadFile` field is `{file: string}`, not `FormData`) - no
+      upload-progress UI needed here, unlike that one, since this is an admin
+      action rather than a user-facing progress bar. 7 new backend tests,
+      196/196 backend pytest total (run twice, no leaks), `tsc`/`eslint`/a real
+      `pnpm build` all clean. **Verified live for real** against the actual
+      running API (not mocked): real threshold GET/PATCH/range-validation, a
+      real CSV import computing real Ollama embeddings and landing in a real
+      family-filtered browse and a real semantic search (correctly ranked a
+      concrete-foundation code first for a "concrete foundation" query), and a
+      full real rules CRUD cycle (create suggested → list by status → activate
+      → delete → confirm 404) - all cleaned up afterward. **A real, if unusual,
+      process-hygiene variant hit during this verification**: port 8000 turned
+      out to hold two ghost TCP listeners (`netstat` showed them LISTENING,
+      but `Get-Process`/`Get-CimInstance`/`taskkill` all agreed neither PID
+      exists) left over from earlier in this long session - serving stale
+      pre-4.6 responses (missing `/settings/threshold` entirely) despite a
+      freshly-started, correctly-coded `--reload` server appearing to start up
+      cleanly against that same port. Caught only because the regenerated
+      OpenAPI schema was missing the new path; worked around by verifying on a
+      different port (8001) instead of chasing the ghost listeners further -
+      not yet understood *why* Windows left them, so noted as a standing risk
+      in CLAUDE.md rather than treated as solved. Same honest gap as 4.1-4.5:
+      no browser tool available, so the actual tabs/dialog/condition-builder
+      interactions were never click-tested.
 - [ ] **4.7 UX polish** — keyboard shortcuts (A approve, C correct, J/K next/prev), empty/loading/error
       states, consistent design.
       Done when (phase): Playwright test covers login → upload → open results → approve one item.

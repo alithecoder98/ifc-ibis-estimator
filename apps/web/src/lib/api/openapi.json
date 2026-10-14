@@ -1112,6 +1112,84 @@
         }
       }
     },
+    "/settings/threshold": {
+      "get": {
+        "tags": ["settings"],
+        "summary": "Get Threshold",
+        "operationId": "get_threshold_settings_threshold_get",
+        "parameters": [
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ThresholdOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["settings"],
+        "summary": "Update Threshold",
+        "operationId": "update_threshold_settings_threshold_patch",
+        "parameters": [
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ThresholdUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ThresholdOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -1766,6 +1844,30 @@
           "final_internal_element"
         ],
         "title": "SimilarExampleOut"
+      },
+      "ThresholdOut": {
+        "properties": {
+          "auto_accept_threshold": {
+            "type": "number",
+            "title": "Auto Accept Threshold"
+          }
+        },
+        "type": "object",
+        "required": ["auto_accept_threshold"],
+        "title": "ThresholdOut"
+      },
+      "ThresholdUpdate": {
+        "properties": {
+          "auto_accept_threshold": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Auto Accept Threshold"
+          }
+        },
+        "type": "object",
+        "required": ["auto_accept_threshold"],
+        "title": "ThresholdUpdate"
       },
       "UserOut": {
         "properties": {

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai.rules import RuleCondition
 
@@ -208,3 +208,11 @@ class RuleOut(BaseModel):
     priority: int
     status: str
     created_at: datetime
+
+
+class ThresholdOut(BaseModel):
+    auto_accept_threshold: float
+
+
+class ThresholdUpdate(BaseModel):
+    auto_accept_threshold: float = Field(ge=0.0, le=1.0)

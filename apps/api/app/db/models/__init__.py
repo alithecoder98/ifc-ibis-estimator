@@ -13,6 +13,7 @@ from app.db.models.exports import Export
 from app.db.models.ifc import Element, IfcFile, Quantity
 from app.db.models.jobs import Job
 from app.db.models.projects import Project
+from app.db.models.settings import AppSetting
 from app.db.models.users import User
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "Rule",
     "Export",
     "Job",
+    "AppSetting",
 ]

@@ -407,6 +407,24 @@ export interface paths {
     patch: operations["update_rule_rules__rule_id__patch"];
     trace?: never;
   };
+  "/settings/threshold": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Threshold */
+    get: operations["get_threshold_settings_threshold_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update Threshold */
+    patch: operations["update_threshold_settings_threshold_patch"];
+    trace?: never;
+  };
   "/": {
     parameters: {
       query?: never;
@@ -794,6 +812,16 @@ export interface components {
       final_ibis_code: string;
       /** Final Internal Element */
       final_internal_element: string;
+    };
+    /** ThresholdOut */
+    ThresholdOut: {
+      /** Auto Accept Threshold */
+      auto_accept_threshold: number;
+    };
+    /** ThresholdUpdate */
+    ThresholdUpdate: {
+      /** Auto Accept Threshold */
+      auto_accept_threshold: number;
     };
     /** UserOut */
     UserOut: {
@@ -1658,6 +1686,72 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["RuleOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_threshold_settings_threshold_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ThresholdOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_threshold_settings_threshold_patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ThresholdUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ThresholdOut"];
         };
       };
       /** @description Validation Error */

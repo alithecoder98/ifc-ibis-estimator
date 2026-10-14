@@ -199,7 +199,7 @@ to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_
 Phase P and the decision log above for the full history.
 
 **Phase 3 — AI classification engine: fully complete (3.1–3.8).** Phase 2 (2.1–2.7)
-complete. **Phase 4 (frontend) in progress: 4.1–4.5 done.**
+complete. **Phase 4 (frontend) in progress: 4.1–4.6 done.**
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -620,10 +620,49 @@ an earlier `AUTH_DISABLED` live-test session) - both were causing real,
 unrelated test failures (`UniqueViolation`/`ForeignKeyViolation`) until
 manually removed. Same honest gap as 4.1-4.4: no browser tool available, so the
 panel's actual open/close/scroll interaction was never click-tested.
-**This session:** logged the 2026-10-14 RBAC/login-out-of-scope decision above
-(no code changed — `AUTH_DISABLED=true` was already set in the local `.env`;
-this just makes that reliance an explicit, documented decision rather than an
-unspoken side effect). **Next up:** Phase 4.6 — Admin area, scope narrowed to
-code list import/browse + rules (suggested/active) + thresholds (the
-originally-planned "users/roles" screen is dropped per that decision). Not
-started yet — user asked to hold off until told to begin.
+**Earlier this session:** logged the 2026-10-14 RBAC/login-out-of-scope decision
+above (no code changed — `AUTH_DISABLED=true` was already set in the local
+`.env`; this just makes that reliance an explicit, documented decision rather
+than an unspoken side effect).
+**Also this session:** 4.6 (admin area) done — scope narrowed per that same
+decision to code list import/browse + rules (suggested/active) + threshold,
+dropping the originally-planned users/roles screen. The only new backend
+piece: a minimal DB-backed `app_settings` key/value table (migration
+`9a32c198ebc5`) so the confidence threshold is admin-editable *and* takes
+effect immediately, not just on restart — `app/core/settings_store.py`'s
+`get_/set_auto_accept_threshold()`, wired into `app/ai/classify.py` (reads it
+once per `classify_elements()` call) and a new `GET/PATCH /settings/threshold`
+(PATCH admin-only). Proven with a dedicated integration test reusing a 3.5
+test's exact scoring inputs (self_score 0.9 → 0.85 final confidence,
+`auto_accepted` at the 0.8 default) and showing a DB-saved threshold above
+0.85 flips that *same* element to `needs_review` — not just a confidence.py
+unit test, an actual classify.py wiring proof. Code-list import/browse and
+rules CRUD needed zero backend changes — both already existed from 3.1/3.2;
+this sub-phase only built `/admin`'s frontend (tabs: Code lists / Rules /
+Threshold) on top of them, including a small rule condition-builder (all 7
+fields, all 3 operators). 196/196 backend pytest (run twice, no leaks),
+`tsc`/`eslint`/a real `pnpm build` all clean. **Verified live against the
+real running API**: real threshold GET/PATCH/range-validation, a real CSV
+import computing real Ollama embeddings landing in a real family-filtered
+browse and a real semantic search (correctly ranked a concrete-foundation
+code first for "concrete foundation"), and a full real rules CRUD cycle —
+all cleaned up afterward.
+**A new, not-yet-understood process-hygiene variant hit during that live
+verification, distinct from every earlier instance of this bug class:** port
+8000 held two TCP listeners that `netstat` reported as LISTENING while
+`Get-Process`/`Get-CimInstance`/`taskkill` all agreed neither owning PID
+exists — true ghost listeners, not just a stale-code process this time. A
+freshly started, correctly-coded `--reload` server appeared to start
+normally against that same port, but every request it served was answered
+by one of the ghosts instead, missing the entire new `/settings` route and
+silently producing a stale OpenAPI schema. Caught only because the
+regenerated frontend types were missing the new path — not by any server
+log or startup error. Worked around by verifying on a different port (8001)
+rather than solving the ghosts; **if a live-verification server on this
+machine ever again serves responses that don't match code you just wrote,
+suspect a stale/ghost listener on that exact port before suspecting your own
+code, and try a different port as a cheap diagnostic** before spending more
+time on it. Root cause still unknown — flagging as a standing risk, not a
+solved one.
+**Next up:** Phase 4.7 — UX polish (keyboard shortcuts, loading/empty/error
+states, a Playwright E2E test). No open decisions block it.

@@ -27,6 +27,7 @@ from app.ai.jev import get_jev_client
 from app.ai.llm import classify_with_llm, get_llm_client, load_estimating_rules
 from app.ai.retrieval import shortlist_and_examples
 from app.ai.rules import match_rule
+from app.core.settings_store import get_auto_accept_threshold
 from app.db.models import Classification, Element, IfcFile, Project, Quantity, Rule
 
 
@@ -119,6 +120,9 @@ def classify_elements(
     llm_client = get_llm_client() if use_llm else None
     rules_text = load_estimating_rules() if use_llm else None
     jev_client = get_jev_client() if use_jev else None
+    # Read once per call, not per element/group - an admin changing this mid-run
+    # shouldn't make one job's rows inconsistent with each other.
+    threshold = get_auto_accept_threshold(db)
 
     quantities_by_element: dict[int, list[Quantity]] = {}
     for quantity in (
@@ -181,6 +185,7 @@ def classify_elements(
                     candidates,
                     element,
                     quantities,
+                    threshold=threshold,
                 )
                 db.add(
                     Classification(
@@ -206,6 +211,7 @@ def classify_elements(
                     candidates,
                     element,
                     quantities,
+                    threshold=threshold,
                 )
                 engine_flags = ["jev_stub"] if jev_result.is_stub else []
                 db.add(
