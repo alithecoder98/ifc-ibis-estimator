@@ -176,7 +176,7 @@ to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_
 Phase P and the decision log above for the full history.
 
 **Phase 3 — AI classification engine: fully complete (3.1–3.8).** Phase 2 (2.1–2.7)
-complete. **Next: Phase 4 (frontend), starting at 4.1.**
+complete. **Phase 4 (frontend) started: 4.1 done.**
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -445,12 +445,26 @@ to `data/reports/eval/` (git-ignored). 165/165 pytest, run twice, no leaks.
 qwen2.5 classify it, ran the real CLI against a hand-built ground truth - 83.3%
 accuracy, 100% auto-accept precision, 0% unflagged errors, real token totals
 (9584+1429), correct per-family breakdown, valid `.md`/`.json` on disk.
-**Next up:** Phase 4 — frontend application, starting at **4.1 Projects pages**
-(list with search/status, create/edit form, project detail shell). This is a mode
-shift from backend-only work: Next.js 15, TypeScript strict, Tailwind, shadcn/ui
-(Base UI primitives here, not Radix - `render` prop, not `asChild`, per the
-Windows/environment quirks above), React Query, a typed API client generated from
-the FastAPI OpenAPI schema. No open decisions block it. Per CLAUDE.md's own "How we
-work together": explain frontend/3D-viewer parts in more depth than backend ones -
-this user is comfortable with Python/automation but frontend is less familiar
-territory for them.
+**Also this session:** 4.1 (Projects pages) done - **first frontend sub-phase**.
+Regenerated `schema.d.ts` from the live backend (stale since Phase 1 - missing
+every endpoint built across Phases 2-3). Needed two small backend additions this
+sub-phase surfaced, not pre-existing: `ProjectUpdate.name` + broadened
+`PATCH /projects/{id}` to admin/estimator (renaming isn't an admin-only concern
+like 3.5's `classification_engine` setting was), and `GET /projects/{project_id}/
+files` (list) - didn't exist at all, so the frontend had no way to see a
+project's files/status. `project.status` is still always `"draft"` (nothing
+transitions it yet - a known gap, not fixed here); the Overview tab shows real
+per-file status instead of fabricating a project-level one.
+`src/lib/projects/*` hooks, `project-dialog.tsx` (shared create/rename),
+`export-button.tsx` (a real working CSV download, not a placeholder).
+`/projects` and `/projects/[id]` are real pages now; Elements/3D tabs are
+explicitly labeled "coming in a later phase" rather than faked. New shadcn:
+`badge`, `dialog`, `tabs`. 168/168 backend pytest, `tsc`/`eslint`/`pnpm build`
+all clean. **Verification gap, flagged honestly rather than glossed over:** no
+browser/computer-use tool was available in this environment, so every real API
+call the hooks make was exercised directly against the live backend (confirmed
+correct shapes/behavior), but the actual rendered UI was never click-tested in
+a browser - that's still unverified, not just untested.
+**Next up:** Phase 4.2 — upload flow (drag-and-drop IFC upload on the project
+page, upload progress, then job progress per step by polling `/jobs/{id}`,
+clear error states). No open decisions block it.

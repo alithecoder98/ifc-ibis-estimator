@@ -106,6 +106,228 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/projects": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Projects */
+    get: operations["list_projects_projects_get"];
+    put?: never;
+    /** Create Project */
+    post: operations["create_project_projects_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{project_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Project */
+    get: operations["get_project_projects__project_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update Project
+     * @description Renaming (Phase 4.1) and changing classification_engine (Phase 3.5) share
+     *     one endpoint - both are normal actions for whoever's running this project, not
+     *     an admin-only concern, and this app has no multi-tenant/adversarial model to
+     *     defend against (single client, their own estimators - see CLAUDE.md's
+     *     non-goals), so there's no real reason to split permissions per field.
+     */
+    patch: operations["update_project_projects__project_id__patch"];
+    trace?: never;
+  };
+  "/projects/{project_id}/files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Files
+     * @description Phase 4.1 - the frontend has had no way to see a project's uploaded
+     *     file(s)/their status at all until now (POST creates one, but nothing listed
+     *     it back). project.status itself is never updated by the pipeline (still
+     *     always "draft") - real per-upload progress lives on IfcFile.status, which is
+     *     what this exposes.
+     */
+    get: operations["list_files_projects__project_id__files_get"];
+    put?: never;
+    /** Upload Ifc File */
+    post: operations["upload_ifc_file_projects__project_id__files_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{project_id}/export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Export Project Csv
+     * @description Phase P.3 — the minimal results output: every element in the project, its
+     *     quantities, and its jev classification (if any), as a downloadable CSV.
+     */
+    get: operations["export_project_csv_projects__project_id__export_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{project_id}/files/{file_id}/model": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Fragments Model
+     * @description Phase 2.6 — the converted That Open fragments file for the (not-yet-built) 3D
+     *     viewer. 404 until the file's processing job has reached the fragments step.
+     */
+    get: operations["get_fragments_model_projects__project_id__files__file_id__model_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{project_id}/files/{file_id}/classify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Classify File
+     * @description Phase 3.7 — re-runs classification for an already-extracted file, e.g. after
+     *     adding rules or code_list entries. Re-evaluates every element (force=True in
+     *     app/workers/classification.py), not just ones missing a classification -
+     *     "latest classification wins" is already the project's convention, so this adds
+     *     fresher rows rather than deleting the old ones.
+     */
+    post: operations["classify_file_projects__project_id__files__file_id__classify_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/codes/import": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Import Codes */
+    post: operations["import_codes_codes_import_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/codes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Codes */
+    get: operations["list_codes_codes_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/codes/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search Codes */
+    get: operations["search_codes_codes_search_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/rules": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Rules */
+    get: operations["list_rules_rules_get"];
+    put?: never;
+    /** Create Rule */
+    post: operations["create_rule_rules_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/rules/{rule_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Rule */
+    get: operations["get_rule_rules__rule_id__get"];
+    put?: never;
+    post?: never;
+    /** Delete Rule */
+    delete: operations["delete_rule_rules__rule_id__delete"];
+    options?: never;
+    head?: never;
+    /** Update Rule */
+    patch: operations["update_rule_rules__rule_id__patch"];
+    trace?: never;
+  };
   "/": {
     parameters: {
       query?: never;
@@ -127,10 +349,62 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /** Body_import_codes_codes_import_post */
+    Body_import_codes_codes_import_post: {
+      /** File */
+      file: string;
+    };
+    /** Body_upload_ifc_file_projects__project_id__files_post */
+    Body_upload_ifc_file_projects__project_id__files_post: {
+      /** File */
+      file: string;
+    };
+    /** CodeListOut */
+    CodeListOut: {
+      /** Id */
+      id: number;
+      /** Ibis Code */
+      ibis_code: string;
+      /** Internal Element */
+      internal_element: string;
+      /** Description */
+      description: string | null;
+      /** Unit */
+      unit: string | null;
+      /** Family */
+      family: string | null;
+      /** Version */
+      version: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
       detail?: components["schemas"]["ValidationError"][];
+    };
+    /** IfcFileOut */
+    IfcFileOut: {
+      /** Id */
+      id: number;
+      /** Project Id */
+      project_id: number;
+      /** Filename */
+      filename: string;
+      /** Ifc Schema */
+      ifc_schema: string | null;
+      /** Size Bytes */
+      size_bytes: number;
+      /** Status */
+      status: string;
+      /**
+       * Uploaded At
+       * Format: date-time
+       */
+      uploaded_at: string;
     };
     /** LoginRequest */
     LoginRequest: {
@@ -141,6 +415,118 @@ export interface components {
       email: string;
       /** Password */
       password: string;
+    };
+    /** ProjectCreate */
+    ProjectCreate: {
+      /** Name */
+      name: string;
+    };
+    /** ProjectOut */
+    ProjectOut: {
+      /** Id */
+      id: number;
+      /** Name */
+      name: string;
+      /** Status */
+      status: string;
+      /** Classification Engine */
+      classification_engine: string;
+      /** Created By */
+      created_by: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** ProjectUpdate */
+    ProjectUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Classification Engine */
+      classification_engine?: ("llm" | "jev" | "both") | null;
+    };
+    /** RuleCondition */
+    RuleCondition: {
+      /**
+       * Field
+       * @enum {string}
+       */
+      field:
+        | "ifc_class"
+        | "predefined_type"
+        | "material_keyword"
+        | "thickness_mm"
+        | "is_external"
+        | "load_bearing"
+        | "storey_keyword";
+      /**
+       * Operator
+       * @enum {string}
+       */
+      operator: "==" | "contains" | "between";
+      /** Value */
+      value: unknown;
+    };
+    /** RuleCreate */
+    RuleCreate: {
+      /** Conditions */
+      conditions: components["schemas"]["RuleCondition"][];
+      /** Result Ibis Code */
+      result_ibis_code: string;
+      /** Result Internal Element */
+      result_internal_element: string;
+      /**
+       * Priority
+       * @default 0
+       */
+      priority: number;
+      /**
+       * Status
+       * @default active
+       * @enum {string}
+       */
+      status: "suggested" | "active";
+    };
+    /** RuleOut */
+    RuleOut: {
+      /** Id */
+      id: number;
+      /** Conditions */
+      conditions: {
+        [key: string]: unknown;
+      }[];
+      /** Result Ibis Code */
+      result_ibis_code: string;
+      /** Result Internal Element */
+      result_internal_element: string;
+      /** Priority */
+      priority: number;
+      /** Status */
+      status: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /** RuleUpdate */
+    RuleUpdate: {
+      /** Conditions */
+      conditions?: components["schemas"]["RuleCondition"][] | null;
+      /** Result Ibis Code */
+      result_ibis_code?: string | null;
+      /** Result Internal Element */
+      result_internal_element?: string | null;
+      /** Priority */
+      priority?: number | null;
+      /** Status */
+      status?: ("suggested" | "active") | null;
     };
     /** UserOut */
     UserOut: {
@@ -323,6 +709,588 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["UserOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_projects_projects_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_project_projects_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_project_projects__project_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_project_projects__project_id__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_files_projects__project_id__files_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IfcFileOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  upload_ifc_file_projects__project_id__files_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["Body_upload_ifc_file_projects__project_id__files_post"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IfcFileOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  export_project_csv_projects__project_id__export_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_fragments_model_projects__project_id__files__file_id__model_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        file_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  classify_file_projects__project_id__files__file_id__classify_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        file_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  import_codes_codes_import_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["Body_import_codes_codes_import_post"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CodeListOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_codes_codes_get: {
+    parameters: {
+      query?: {
+        family?: string | null;
+        latest_only?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CodeListOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  search_codes_codes_search_get: {
+    parameters: {
+      query: {
+        q: string;
+        family?: string | null;
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CodeListOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_rules_rules_get: {
+    parameters: {
+      query?: {
+        status_filter?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RuleOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_rule_rules_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RuleCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RuleOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_rule_rules__rule_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        rule_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RuleOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_rule_rules__rule_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        rule_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_rule_rules__rule_id__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        rule_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RuleUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RuleOut"];
         };
       };
       /** @description Validation Error */

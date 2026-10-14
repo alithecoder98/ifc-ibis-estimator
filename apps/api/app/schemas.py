@@ -25,6 +25,7 @@ class ProjectOut(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
+    name: str | None = None
     classification_engine: Literal["llm", "jev", "both"] | None = None
 
 

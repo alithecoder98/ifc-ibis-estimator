@@ -131,7 +131,11 @@ def test_update_project_classification_engine_as_admin() -> None:
         _delete_user(admin.id)
 
 
-def test_update_project_classification_engine_requires_admin() -> None:
+def test_update_project_allowed_for_estimator_too() -> None:
+    """Phase 4.1: renaming and changing classification_engine share one endpoint,
+    and renaming is a normal estimator action - not admin-only like 3.5 first
+    scoped this endpoint. See app/routers/projects.py's update_project() docstring.
+    """
     estimator = _create_user("estimator-3.5b@example.com", "estimator")
     _login_as(estimator)
     project_id = None
@@ -140,14 +144,39 @@ def test_update_project_classification_engine_requires_admin() -> None:
         project_id = create_response.json()["id"]
 
         patch_response = client.patch(
-            f"/projects/{project_id}", json={"classification_engine": "llm"}
+            f"/projects/{project_id}",
+            json={"name": "Renamed by estimator", "classification_engine": "llm"},
         )
-        assert patch_response.status_code == 403
+        assert patch_response.status_code == 200
+        assert patch_response.json()["name"] == "Renamed by estimator"
+        assert patch_response.json()["classification_engine"] == "llm"
     finally:
         client.cookies.clear()
         if project_id is not None:
             _cleanup_project(project_id)
         _delete_user(estimator.id)
+
+
+def test_update_project_requires_admin_or_estimator() -> None:
+    admin = _create_user("admin-4.1a@example.com", "admin")
+    _login_as(admin)
+    project_id = client.post("/projects", json={"name": "Engine Project D"}).json()[
+        "id"
+    ]
+    client.cookies.clear()
+
+    viewer = _create_user("viewer-4.1a@example.com", "viewer")
+    _login_as(viewer)
+    try:
+        patch_response = client.patch(
+            f"/projects/{project_id}", json={"name": "Should not work"}
+        )
+        assert patch_response.status_code == 403
+    finally:
+        client.cookies.clear()
+        _delete_user(viewer.id)
+        _cleanup_project(project_id)
+        _delete_user(admin.id)
 
 
 def test_update_project_rejects_invalid_engine_value() -> None:
@@ -274,6 +303,49 @@ def test_upload_to_nonexistent_project_404() -> None:
                 "/projects/999999999/files",
                 files={"file": ("sample.ifc", fh, "application/octet-stream")},
             )
+        assert response.status_code == 404
+    finally:
+        client.cookies.clear()
+        _delete_user(user.id)
+
+
+def test_list_files_returns_uploaded_files_newest_first() -> None:
+    user = _create_user("estimator-4.1b@example.com", "estimator")
+    _login_as(user)
+    project_id = None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "List Files Project"}
+        ).json()["id"]
+
+        with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+            first_id = client.post(
+                f"/projects/{project_id}/files",
+                files={"file": ("first.ifc", fh, "application/octet-stream")},
+            ).json()["id"]
+        with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+            second_id = client.post(
+                f"/projects/{project_id}/files",
+                files={"file": ("second.ifc", fh, "application/octet-stream")},
+            ).json()["id"]
+
+        response = client.get(f"/projects/{project_id}/files")
+        assert response.status_code == 200
+        body = response.json()
+        assert [f["id"] for f in body] == [second_id, first_id]  # newest first
+        assert all(f["project_id"] == project_id for f in body)
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(user.id)
+
+
+def test_list_files_404_for_nonexistent_project() -> None:
+    user = _create_user("estimator-4.1c@example.com", "estimator")
+    _login_as(user)
+    try:
+        response = client.get("/projects/999999999/files")
         assert response.status_code == 404
     finally:
         client.cookies.clear()

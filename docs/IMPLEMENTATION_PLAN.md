@@ -489,7 +489,40 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       valid content. 165/165 pytest, run twice, no leaks.
 
 ## Phase 4 — Frontend application (weeks 4–7)
-- [ ] **4.1 Projects pages** — list (search, status), create/edit form, project detail shell.
+- [x] **4.1 Projects pages** — list (search, status), create/edit form, project detail shell.
+      ✅ 2026-10-14 — First frontend sub-phase after Phase 3's backend work; also
+      regenerated `schema.d.ts` from the live backend (stale since Phase 1 - only
+      had auth/health/jobs-demo, missing every endpoint built across Phases 2-3).
+      **Backend additions this sub-phase needed, not pre-existing:**
+      `ProjectUpdate.name` + broadened `PATCH /projects/{id}` from admin-only to
+      admin/estimator (renaming is a normal estimator action, not the AI-engine-
+      config concern 3.5 first scoped this endpoint for - this app has no
+      multi-tenant/adversarial model per CLAUDE.md's non-goals, so no per-field
+      split was worth building); `GET /projects/{project_id}/files` (list) -
+      didn't exist at all, so the frontend had no way to see a project's
+      uploaded file(s)/status without it. `project.status` itself is still
+      always `"draft"` (nothing in the pipeline ever transitions it - a known
+      gap, not fixed here); the Overview tab shows real per-file status via the
+      new endpoint instead of fabricating a project-level one.
+      Frontend: `src/lib/projects/*` (React Query hooks matching the existing
+      auth-hooks convention), `project-dialog.tsx` (shared create/rename form),
+      `status-badge.ts`, `export-button.tsx` (a real, working CSV download via
+      the already-complete P.4 export endpoint - not a placeholder). `/projects`
+      is now a real list with client-side name search; `/projects/[id]` is a
+      real detail page with Overview (real metadata + files) wired up, and
+      Elements/3D explicitly labeled "coming in a later phase" (4.3-4.5, Phase 5)
+      rather than faked. New shadcn components: `badge`, `dialog`, `tabs`.
+      168/168 backend pytest (run twice, no leaks), `tsc --noEmit`, `eslint`, and
+      a real `pnpm build` all clean. **Verified live, honestly partial**: no
+      browser/computer-use tool was available in this environment to click-test
+      the actual rendered UI, so every real API call the hooks make (login,
+      list/create/get/patch a project, list files, export) was exercised
+      directly against the live backend with real auth and confirmed to return
+      exactly the shapes the TypeScript types expect; the dev server itself
+      runs and serves all routes with no build/type errors. The one thing not
+      verified: whether the React rendering/interactivity itself looks and
+      behaves correctly in an actual browser - flagged explicitly rather than
+      claimed, per CLAUDE.md's own instruction for exactly this situation.
 - [ ] **4.2 Upload flow** — drag-and-drop, chunked upload, job progress per step, error states.
 - [ ] **4.3 Results overview** — counts (total, auto-accepted, to review, corrected), totals per IBIS
       code, warnings panel.

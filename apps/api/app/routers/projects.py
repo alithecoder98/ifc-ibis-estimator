@@ -71,10 +71,13 @@ def update_project(
     project_id: int,
     body: ProjectUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("admin")),
+    user: User = Depends(require_role("admin", "estimator")),
 ) -> Project:
-    """Admin-only (Phase 3.5): currently only exposes classification_engine - which
-    AI engine(s) classify_elements() calls for this project's future uploads.
+    """Renaming (Phase 4.1) and changing classification_engine (Phase 3.5) share
+    one endpoint - both are normal actions for whoever's running this project, not
+    an admin-only concern, and this app has no multi-tenant/adversarial model to
+    defend against (single client, their own estimators - see CLAUDE.md's
+    non-goals), so there's no real reason to split permissions per field.
     """
     project = db.get(Project, project_id)
     if project is None:
@@ -161,6 +164,31 @@ def upload_ifc_file(
         return ifc_file
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+@router.get("/{project_id}/files", response_model=list[IfcFileOut])
+def list_files(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator", "viewer")),
+) -> list[IfcFile]:
+    """Phase 4.1 - the frontend has had no way to see a project's uploaded
+    file(s)/their status at all until now (POST creates one, but nothing listed
+    it back). project.status itself is never updated by the pipeline (still
+    always "draft") - real per-upload progress lives on IfcFile.status, which is
+    what this exposes.
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
+    return (
+        db.query(IfcFile)
+        .filter(IfcFile.project_id == project_id)
+        .order_by(IfcFile.uploaded_at.desc())
+        .all()
+    )
 
 
 @router.get("/{project_id}/export")
