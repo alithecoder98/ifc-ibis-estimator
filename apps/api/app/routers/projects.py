@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.ai.elements import ElementRow, list_element_rows
 from app.ai.export import build_export_csv
 from app.ai.summary import compute_summary
 from app.core.deps import require_role
@@ -29,6 +30,7 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.schemas import (
+    ElementRowOut,
     IfcFileOut,
     ProjectCreate,
     ProjectOut,
@@ -258,6 +260,26 @@ def get_project_summary(
             for t in summary.totals_by_code
         ],
     )
+
+
+@router.get("/{project_id}/elements", response_model=list[ElementRowOut])
+def list_elements(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator", "viewer")),
+) -> list[ElementRow]:
+    """Phase 4.4 - the Elements tab's full row set. Returns everything in one
+    response; filtering/sorting/grouping/search all happen client-side against
+    this list (see CLAUDE.md's 4.4 entry for why - virtualisation, not server
+    paging, is what actually solves the rendering-performance problem at
+    realistic JSON sizes).
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
+    return list_element_rows(db, project_id)
 
 
 @router.get("/{project_id}/export")

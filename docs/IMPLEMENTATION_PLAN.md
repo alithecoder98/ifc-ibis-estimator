@@ -596,8 +596,47 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       was seeded exactly (including the net-only 65.75m2 total, not
       double-counted). Same honest gap as 4.1/4.2: no browser tool available,
       so the rendered cards/table were never click-tested.
-- [ ] **4.4 Element table** — virtualised, filters (status, confidence, family, storey), sort, search,
+- [x] **4.4 Element table** — virtualised, filters (status, confidence, family, storey), sort, search,
       group by element type, column picker; handles 5,000+ rows smoothly.
+      ✅ 2026-10-14 — New endpoint `GET /projects/{project_id}/elements` (one row
+      per element, reusing 4.3's `primary_quantity`/`latest_classifications_by_element`
+      and 3.3's `guess_family` rather than new logic) returns the **full** list,
+      no server-side pagination - at realistic JSON sizes even 5,000+ rows fits
+      comfortably in memory, and client-side virtualisation (the plan's own
+      first-named solution) is what actually solves the rendering-performance
+      problem; server paging stays unbuilt until something real shows it's
+      needed. All filtering/sorting/grouping/search happens client-side against
+      that one list via `@tanstack/react-table` + `@tanstack/react-virtual`.
+      **A real, important version trap found before writing a line of component
+      code:** `pnpm add @tanstack/react-table` installs **v9** by default, which
+      turned out to be a from-scratch API rewrite - no `useReactTable`, no
+      `getCoreRowModel()`, a completely different feature-based architecture
+      with no resemblance to the stable, overwhelmingly-more-common v8 API every
+      tutorial/example on the internet uses. Caught by `tsc` immediately
+      ("no exported member 'useReactTable'"), not by guessing - explicitly pinned
+      to `8.21.3` instead, the right call for a client project over building
+      against an unfamiliar, undertested rewrite. **Two more real bugs caught by
+      `tsc`/`eslint`, not inspection:** sorting the quantity column against its
+      display string ("45.5 m2") would have sorted lexicographically instead of
+      numerically - fixed by keeping the `accessorFn` numeric and moving the
+      unit-suffix formatting into `cell`. `elements ?? []` created a fresh array
+      reference every render while the query was still loading, silently
+      defeating every downstream `useMemo` - fixed by memoizing that fallback
+      itself. 182/182 backend pytest (run twice, no leaks), `tsc`/`eslint`/a
+      real `pnpm build` all clean. **Verified live for real**: seeded a
+      classified wall and an unclassified roof directly, hit the real endpoint
+      with real auth, both rows matched exactly (including all-null fields for
+      the unclassified one). Same honest gap as 4.1-4.3: no browser tool
+      available, so the actual table/virtualisation/grouping/column-picker
+      interactions were never click-tested - this is the sub-phase where that
+      gap matters most, given how much of 4.4 *is* interaction.
+      **Also this session, at the user's request, unrelated to 4.4's own
+      scope:** downloaded all 18 real-world IFC test files from
+      [youshengCode/IfcSampleFiles](https://github.com/youshengCode/IfcSampleFiles)
+      into `data/sample_ifc_files/` (~176MB, git-ignored per the existing
+      `/data/*` rule - these are large public test files, not something to add
+      to this repo's history) for manual larger-scale pipeline testing, distinct
+      from the small git-tracked fixtures in `apps/api/tests/fixtures/`.
 - [ ] **4.5 Element detail panel** — properties, layers, quantities with source, AI reasoning,
       candidates with scores, similar examples, review history.
 - [ ] **4.6 Admin area** — users/roles, code list import + browse, rules (suggested/active), thresholds.

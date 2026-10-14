@@ -6,9 +6,9 @@ import uuid
 
 from app.ai.summary import (
     QUANTITY_PRECEDENCE,
-    _primary_quantity,
     compute_summary,
     latest_classifications_by_element,
+    primary_quantity,
 )
 from app.db.models import (
     Classification,
@@ -32,17 +32,17 @@ def test_primary_quantity_prefers_net_over_gross() -> None:
         _quantity("area_gross", 50.0, "m2"),
         _quantity("area_net", 45.0, "m2"),
     ]
-    assert _primary_quantity(quantities) == (45.0, "m2")
+    assert primary_quantity(quantities) == (45.0, "m2")
 
 
 def test_primary_quantity_falls_back_through_precedence() -> None:
     quantities = [_quantity("count", 3.0, "st")]
-    assert _primary_quantity(quantities) == (3.0, "st")
+    assert primary_quantity(quantities) == (3.0, "st")
     assert QUANTITY_PRECEDENCE[-1] == "count"
 
 
 def test_primary_quantity_none_when_no_quantities() -> None:
-    assert _primary_quantity([]) is None
+    assert primary_quantity([]) is None
 
 
 def _setup_project() -> tuple[int, int, int]:

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ElementTable } from "@/components/projects/element-table";
 import { ExportButton } from "@/components/projects/export-button";
 import { ProjectDialog } from "@/components/projects/project-dialog";
 import { ResultsOverview } from "@/components/projects/results-overview";
@@ -104,9 +105,7 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="elements" className="pt-4">
-          <p className="text-muted-foreground text-sm">
-            The element review table arrives in Phase 4.3-4.5.
-          </p>
+          <ElementTable projectId={projectId} />
         </TabsContent>
 
         <TabsContent value="3d" className="pt-4">

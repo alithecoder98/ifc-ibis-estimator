@@ -8,6 +8,25 @@ from pydantic import BaseModel, ConfigDict
 from app.ai.rules import RuleCondition
 
 
+class ElementRowOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    global_id: str
+    name: str | None
+    ifc_class: str
+    storey: str | None
+    material: str | None
+    quantity: float | None
+    unit: str | None
+    family: str
+    group_hash: str
+    suggested_ibis_code: str | None
+    internal_element: str | None
+    confidence: float | None
+    status: str | None
+
+
 class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

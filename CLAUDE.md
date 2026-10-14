@@ -176,7 +176,7 @@ to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_
 Phase P and the decision log above for the full history.
 
 **Phase 3 — AI classification engine: fully complete (3.1–3.8).** Phase 2 (2.1–2.7)
-complete. **Phase 4 (frontend) in progress: 4.1–4.3 done.**
+complete. **Phase 4 (frontend) in progress: 4.1–4.4 done.**
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -189,7 +189,16 @@ unformatted; Git Bash mangles `/garage` paths in `docker compose exec` — prefi
 `MSYS_NO_PATHCONV=1`; a file's `AREAUNIT`/`VOLUMEUNIT` can be declared independently of
 `LENGTHUNIT` in IFC, not derived from it — always get each unit type's scale
 separately via `ifcopenshell.util.unit.calculate_unit_scale(file, unit_type)`, never
-assume area = length_scale².
+assume area = length_scale². **`pnpm add <package>` installs whatever "latest" tag
+currently points to, which is not always the well-established API a plan or
+tutorial means** — `@tanstack/react-table` (4.4) resolved to v9, a from-scratch
+rewrite with no `useReactTable`/`getCoreRowModel()`/etc. at all, nothing like the
+stable v8 API the rest of the ecosystem's docs and examples use. `tsc` caught it
+immediately ("no exported member"), but the lesson is to check the installed
+major version against what's actually being written/planned *before* writing
+component code against it, for any TanStack (or similarly fast-moving) package —
+pin an explicit version (`pnpm add pkg@8.x.x`) rather than trusting "latest" means
+"the common one."
 **Docker Desktop's WSL2 virtual disk doesn't shrink on its own.** `docker system
 prune`/`image prune`/`builder prune` free space *inside* Docker's accounting, but the
 host-side `.vhdx` file (`%LOCALAPPDATA%\Docker\wsl\disk\docker_data.vhdx`) stays the
@@ -509,11 +518,32 @@ introduce). 177/177 backend pytest, `tsc`/`eslint`/`pnpm build` clean.
 **Verified live for real**: seeded real rows directly, hit the real endpoint,
 every number matched exactly what was seeded. Same honest gap as 4.1/4.2: no
 browser tool available, so the rendered UI wasn't click-tested.
-**Next up:** Phase 4.4 — element table (TanStack Table with virtualisation;
-columns for element/class/storey/material/quantity/code/confidence/status;
-filters for status/confidence/family/storey; search, sort, group by
-`group_hash`). **New dependency this will need:** `@tanstack/react-table`
-(and a virtualization library, e.g. `@tanstack/react-virtual`) - neither
-installed yet. No open decisions block it, though there's still no endpoint
-to list a project's elements at all - that's this sub-phase's job to add,
-same pattern as 4.1's missing files-list and 4.2's missing job_id.
+**Also this session:** 4.4 (element table) done. New
+`GET /projects/{project_id}/elements` returns the full row list (reusing 4.3's
+`primary_quantity`/`latest_classifications_by_element` and 3.3's
+`guess_family`) - no server-side pagination, same reasoning as 4.3's "virtualise,
+don't paginate" call. All filtering/sorting/grouping/search is client-side via
+`@tanstack/react-table` + `@tanstack/react-virtual`. **A real version trap caught
+before writing component code**: `pnpm add @tanstack/react-table` installs v9 by
+default, a from-scratch rewrite with none of the stable v8 API - pinned to
+`8.21.3` instead (see the new standing note under "Known Windows/environment
+quirks" above). Two more real bugs caught by `tsc`/`eslint`: the quantity column
+would have sorted lexicographically against its display string instead of
+numerically, and `elements ?? []` created a fresh array reference every render,
+defeating every downstream `useMemo`. 182/182 backend pytest, `tsc`/`eslint`/
+`pnpm build` clean. Verified live for real: a classified and an unclassified
+element both matched exactly. Same honest gap as 4.1-4.3: no browser tool
+available, and this is the sub-phase where that matters most (most of 4.4 *is*
+interaction - filtering, sorting, grouping, the column picker).
+**Also this session, at the user's request, unrelated to 4.4's scope**:
+downloaded all 18 real-world IFC files from
+[youshengCode/IfcSampleFiles](https://github.com/youshengCode/IfcSampleFiles)
+into `data/sample_ifc_files/` (~176MB, git-ignored) for manual larger-scale
+testing.
+**Next up:** Phase 4.5 — element detail panel (side panel on row click:
+properties, material layers, quantities with source, AI reasoning, candidates
+with scores, similar examples, review history). No open decisions block it,
+though review history will be empty (reviews don't exist until Phase 6.1,
+same honest-zero situation as 4.3's "corrected" count) and
+candidates/similar-examples need real `code_list`/`example_memory` data to be
+meaningfully non-empty.

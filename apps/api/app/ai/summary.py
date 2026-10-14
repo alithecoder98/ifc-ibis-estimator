@@ -77,7 +77,7 @@ def latest_classifications_by_element(
     return latest
 
 
-def _primary_quantity(quantities: list[Quantity]) -> tuple[float, str] | None:
+def primary_quantity(quantities: list[Quantity]) -> tuple[float, str] | None:
     by_type = {q.quantity_type: q for q in quantities}
     for quantity_type in QUANTITY_PRECEDENCE:
         quantity = by_type.get(quantity_type)
@@ -136,7 +136,7 @@ def compute_summary(db: Session, project_id: int) -> ProjectSummary:
             unmapped_count += 1
             continue
 
-        primary = _primary_quantity(quantities_by_element.get(element.id, []))
+        primary = primary_quantity(quantities_by_element.get(element.id, []))
         key = (
             classification.ibis_code,
             classification.internal_element or "",

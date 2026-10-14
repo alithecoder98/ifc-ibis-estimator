@@ -204,6 +204,30 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/projects/{project_id}/elements": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Elements
+     * @description Phase 4.4 - the Elements tab's full row set. Returns everything in one
+     *     response; filtering/sorting/grouping/search all happen client-side against
+     *     this list (see CLAUDE.md's 4.4 entry for why - virtualisation, not server
+     *     paging, is what actually solves the rendering-performance problem at
+     *     realistic JSON sizes).
+     */
+    get: operations["list_elements_projects__project_id__elements_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/projects/{project_id}/export": {
     parameters: {
       query?: never;
@@ -423,6 +447,37 @@ export interface components {
       quantity: number;
       /** Element Count */
       element_count: number;
+    };
+    /** ElementRowOut */
+    ElementRowOut: {
+      /** Id */
+      id: number;
+      /** Global Id */
+      global_id: string;
+      /** Name */
+      name: string | null;
+      /** Ifc Class */
+      ifc_class: string;
+      /** Storey */
+      storey: string | null;
+      /** Material */
+      material: string | null;
+      /** Quantity */
+      quantity: number | null;
+      /** Unit */
+      unit: string | null;
+      /** Family */
+      family: string;
+      /** Group Hash */
+      group_hash: string;
+      /** Suggested Ibis Code */
+      suggested_ibis_code: string | null;
+      /** Internal Element */
+      internal_element: string | null;
+      /** Confidence */
+      confidence: number | null;
+      /** Status */
+      status: string | null;
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -1029,6 +1084,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ProjectSummaryOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_elements_projects__project_id__elements_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ElementRowOut"][];
         };
       };
       /** @description Validation Error */

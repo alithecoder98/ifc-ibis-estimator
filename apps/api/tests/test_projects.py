@@ -381,6 +381,35 @@ def test_list_files_404_for_nonexistent_project() -> None:
         _delete_user(user.id)
 
 
+def test_list_elements_returns_empty_list_for_project_with_no_elements() -> None:
+    user = _create_user("estimator-4.4a@example.com", "estimator")
+    _login_as(user)
+    project_id = None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Elements Endpoint Project"}
+        ).json()["id"]
+        response = client.get(f"/projects/{project_id}/elements")
+        assert response.status_code == 200
+        assert response.json() == []
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(user.id)
+
+
+def test_list_elements_404_for_nonexistent_project() -> None:
+    user = _create_user("estimator-4.4b@example.com", "estimator")
+    _login_as(user)
+    try:
+        response = client.get("/projects/999999999/elements")
+        assert response.status_code == 404
+    finally:
+        client.cookies.clear()
+        _delete_user(user.id)
+
+
 def test_classify_endpoint_requires_extracted_file() -> None:
     """Phase 3.7: re-running classification before extraction has even finished
     makes no sense - there are no elements yet.

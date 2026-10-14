@@ -489,6 +489,53 @@
         }
       }
     },
+    "/projects/{project_id}/elements": {
+      "get": {
+        "tags": ["projects"],
+        "summary": "List Elements",
+        "description": "Phase 4.4 - the Elements tab's full row set. Returns everything in one\nresponse; filtering/sorting/grouping/search all happen client-side against\nthis list (see CLAUDE.md's 4.4 entry for why - virtualisation, not server\npaging, is what actually solves the rendering-performance problem at\nrealistic JSON sizes).",
+        "operationId": "list_elements_projects__project_id__elements_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ElementRowOut" },
+                  "title": "Response List Elements Projects  Project Id  Elements Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/export": {
       "get": {
         "tags": ["projects"],
@@ -1120,6 +1167,69 @@
           "element_count"
         ],
         "title": "CodeTotalOut"
+      },
+      "ElementRowOut": {
+        "properties": {
+          "id": { "type": "integer", "title": "Id" },
+          "global_id": { "type": "string", "title": "Global Id" },
+          "name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Name"
+          },
+          "ifc_class": { "type": "string", "title": "Ifc Class" },
+          "storey": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Storey"
+          },
+          "material": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Material"
+          },
+          "quantity": {
+            "anyOf": [{ "type": "number" }, { "type": "null" }],
+            "title": "Quantity"
+          },
+          "unit": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Unit"
+          },
+          "family": { "type": "string", "title": "Family" },
+          "group_hash": { "type": "string", "title": "Group Hash" },
+          "suggested_ibis_code": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Suggested Ibis Code"
+          },
+          "internal_element": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Internal Element"
+          },
+          "confidence": {
+            "anyOf": [{ "type": "number" }, { "type": "null" }],
+            "title": "Confidence"
+          },
+          "status": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "global_id",
+          "name",
+          "ifc_class",
+          "storey",
+          "material",
+          "quantity",
+          "unit",
+          "family",
+          "group_hash",
+          "suggested_ibis_code",
+          "internal_element",
+          "confidence",
+          "status"
+        ],
+        "title": "ElementRowOut"
       },
       "HTTPValidationError": {
         "properties": {
