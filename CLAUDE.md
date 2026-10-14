@@ -155,6 +155,29 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
   real (100% GPU offload per `ollama ps`, ~62 tok/s once warm, correct real LLM output
   and real pgvector similarity search, not mocked). `EMBEDDING_DIM` changed from the
   OpenAI-shaped placeholder (1536) to bge-m3's real 1024.
+- 2026-10-14 — **RBAC/login taken out of scope for now — disabled, not deleted.**
+  The user asked to skip auth/role work going forward; when offered the choice
+  between actually ripping the code out versus leaving it in place and unused,
+  explicitly chose to leave it in place. In practice this changes nothing about
+  the running app: the local `.env` already has `AUTH_DISABLED=true` (confirmed
+  on inspection), so every request already lands as the fixed `dev@local.test`
+  admin user regardless of cookie — this decision mostly makes that reliance
+  explicit rather than an unspoken side effect of a dev convenience toggle. Login
+  page, JWT cookie logic, and every endpoint's `require_role(...)` check all stay
+  exactly as built (every current `require_role(...)` call already includes
+  `"admin"` in its allowed roles, so the bypass user passes all of them) —
+  nothing to touch, nothing deleted, fully reversible by flipping the flag back.
+  **This does update, not contradict, the 2026-10-13 `AUTH_DISABLED` note above**:
+  that note's warning ("must stay off for anything beyond local dev — not a
+  decision to drop RBAC from the MVP") is still the right call for any real
+  staging/production target; today there is no such target (see "Still open"),
+  so this is scoped to current local-only work, not a retraction of RBAC from
+  the eventual MVP if a client commits. Practical effect on the plan: **Phase
+  4.6's scope narrows to code list import/browse + rules (suggested/active) +
+  thresholds — its originally-planned "users/roles" admin screen is dropped**,
+  since there's no active enforcement for it to manage right now. Not yet
+  started — the user asked to log this decision now and hold off on starting
+  4.6 itself.
 
 ## Still open (don't block the engineering work, but block specific later sub-phases)
 
@@ -597,5 +620,10 @@ an earlier `AUTH_DISABLED` live-test session) - both were causing real,
 unrelated test failures (`UniqueViolation`/`ForeignKeyViolation`) until
 manually removed. Same honest gap as 4.1-4.4: no browser tool available, so the
 panel's actual open/close/scroll interaction was never click-tested.
-**Next up:** Phase 4.6 — Admin area (users/roles, code list import + browse,
-rules suggested/active, thresholds). No open decisions block it.
+**This session:** logged the 2026-10-14 RBAC/login-out-of-scope decision above
+(no code changed — `AUTH_DISABLED=true` was already set in the local `.env`;
+this just makes that reliance an explicit, documented decision rather than an
+unspoken side effect). **Next up:** Phase 4.6 — Admin area, scope narrowed to
+code list import/browse + rules (suggested/active) + thresholds (the
+originally-planned "users/roles" screen is dropped per that decision). Not
+started yet — user asked to hold off until told to begin.

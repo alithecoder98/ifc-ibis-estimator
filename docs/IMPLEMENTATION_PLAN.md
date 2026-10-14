@@ -682,7 +682,11 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       rows and the disposable user cleaned up afterward; full suite re-run
       clean. Same honest gap as 4.1-4.4: no browser tool available, so the
       panel's actual open/close/scroll interaction was never click-tested.
-- [ ] **4.6 Admin area** — users/roles, code list import + browse, rules (suggested/active), thresholds.
+- [ ] **4.6 Admin area** — code list import + browse, rules (suggested/active), thresholds.
+      Scope narrowed 2026-10-14: the originally-planned "users/roles" screen is
+      dropped — see CLAUDE.md's decision log entry of that date (RBAC/login out
+      of scope for now, disabled via the existing `AUTH_DISABLED` toggle rather
+      than deleted, fully reversible). Not started yet.
 - [ ] **4.7 UX polish** — keyboard shortcuts (A approve, C correct, J/K next/prev), empty/loading/error
       states, consistent design.
       Done when (phase): Playwright test covers login → upload → open results → approve one item.
