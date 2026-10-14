@@ -17,7 +17,15 @@ from sqlalchemy.orm import Session
 
 from app.ai.export import build_export_csv
 from app.core.deps import require_role
-from app.db.models import Classification, Element, IfcFile, Project, Quantity, User
+from app.db.models import (
+    Classification,
+    Element,
+    IfcFile,
+    Job,
+    Project,
+    Quantity,
+    User,
+)
 from app.db.session import get_db
 from app.schemas import IfcFileOut, ProjectCreate, ProjectOut, ProjectUpdate
 from app.storage import download_bytes, upload_fileobj
@@ -29,6 +37,18 @@ from app.workers.queue import get_queue
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 ALLOWED_IFC_EXTENSIONS = {".ifc", ".ifczip", ".ifcxml"}
+
+
+def _ifc_file_out(db: Session, ifc_file: IfcFile) -> IfcFileOut:
+    latest_job = (
+        db.query(Job)
+        .filter(Job.ifc_file_id == ifc_file.id)
+        .order_by(Job.created_at.desc())
+        .first()
+    )
+    return IfcFileOut.model_validate(ifc_file).model_copy(
+        update={"job_id": latest_job.id if latest_job else None}
+    )
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
@@ -161,7 +181,8 @@ def upload_ifc_file(
 
         get_queue().enqueue(process_ifc_file, job.id, ifc_file.id)
 
-        return ifc_file
+        # job.id is already known here - skip _ifc_file_out()'s extra query.
+        return IfcFileOut.model_validate(ifc_file).model_copy(update={"job_id": job.id})
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -171,24 +192,26 @@ def list_files(
     project_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "estimator", "viewer")),
-) -> list[IfcFile]:
+) -> list[IfcFileOut]:
     """Phase 4.1 - the frontend has had no way to see a project's uploaded
     file(s)/their status at all until now (POST creates one, but nothing listed
     it back). project.status itself is never updated by the pipeline (still
     always "draft") - real per-upload progress lives on IfcFile.status, which is
-    what this exposes.
+    what this exposes. job_id (Phase 4.2) lets the frontend poll a still-running
+    upload's real progress via GET /jobs/{id}.
     """
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
         )
-    return (
+    ifc_files = (
         db.query(IfcFile)
         .filter(IfcFile.project_id == project_id)
         .order_by(IfcFile.uploaded_at.desc())
         .all()
     )
+    return [_ifc_file_out(db, f) for f in ifc_files]
 
 
 @router.get("/{project_id}/export")

@@ -523,7 +523,40 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       verified: whether the React rendering/interactivity itself looks and
       behaves correctly in an actual browser - flagged explicitly rather than
       claimed, per CLAUDE.md's own instruction for exactly this situation.
-- [ ] **4.2 Upload flow** — drag-and-drop, chunked upload, job progress per step, error states.
+- [x] **4.2 Upload flow** — drag-and-drop, chunked upload, job progress per step, error states.
+      ✅ 2026-10-14 — **"Chunked" wasn't built** - the backend is still a single
+      server-proxied multipart POST (2.1's deliberate deferral, "revisit if
+      large files prove slow"), so what shipped is real upload-progress
+      reporting (via `XMLHttpRequest`, not `fetch`/the typed client - neither
+      fires upload-progress events), not actual multi-request chunking. Noted
+      honestly rather than claimed. **Backend additions this surfaced:**
+      `IfcFileOut.job_id` (the upload response and file list had no way to tell
+      the frontend which job to poll - a real gap, not pre-existing), and
+      `GET /jobs/{id}` finally got a `JobOut` response model **and its first
+      auth check ever** (`require_role` - previously anyone, authenticated or
+      not, could poll any job). Frontend: `useUploadFile` (XHR for real byte
+      progress), `useJob` (polls via `refetchInterval`, stops at `done`/`failed`),
+      `jobStepLabel()` (3 honest labels mapped to the *real* progress ranges
+      `classify_elements`/`extraction.py` actually produce - not the plan's
+      literal "validate/extract/quantities/classify", which the backend doesn't
+      track that granularly and this doesn't fabricate). `UploadDropzone` on the
+      Overview tab: idle/uploading/processing/done/error states, all four error
+      cases covered (wrong extension caught client-side, corrupt IFC content,
+      upload failure, job failure) with real messages and a reset. New shadcn:
+      `progress`. 170/170 backend pytest (run twice, no leaks), `tsc`/`eslint`/
+      real `pnpm build` clean. **Verified live for real** via curl exactly
+      mirroring what the hooks do (login → upload → got a real `job_id` →
+      polled `/jobs/{id}` → watched it reach `done`/`progress:100` → confirmed
+      the file list shows `status: "extracted"`), plus both real error paths
+      (wrong extension, corrupt `.ifc` content) - still the same honest
+      limitation as 4.1: no browser tool available, so the actual rendered
+      drag-and-drop/progress-bar UI was never click-tested. **Reinforced the
+      stray-worker lesson once more:** starting a live worker for this
+      verification, then forgetting to stop it before the next `pytest` run,
+      produced the exact same race as 3.7's - a test's own DB state got
+      overwritten mid-test by the worker actually processing its job for real.
+      Standing rule, now doubly confirmed: stop the worker *before* every
+      pytest run, not just after a restart.
 - [ ] **4.3 Results overview** — counts (total, auto-accepted, to review, corrected), totals per IBIS
       code, warnings panel.
 - [ ] **4.4 Element table** — virtualised, filters (status, confidence, family, storey), sort, search,

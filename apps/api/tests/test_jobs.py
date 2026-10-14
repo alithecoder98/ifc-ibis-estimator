@@ -10,12 +10,36 @@ import fakeredis
 from fastapi.testclient import TestClient
 from rq import Queue
 
-from app.db.models import Job
+from app.core.security import create_access_token, hash_password
+from app.db.models import Job, User
 from app.db.session import SessionLocal
 from app.main import app
 from app.workers.demo import run_demo_job
 
 client = TestClient(app)
+
+
+def _create_user(email: str, role: str) -> User:
+    db = SessionLocal()
+    user = User(email=email, password_hash=hash_password("pw"), role=role)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    db.close()
+    return user
+
+
+def _login_as(user: User) -> None:
+    client.cookies.set(
+        "access_token", create_access_token(user_id=user.id, role=user.role)
+    )
+
+
+def _delete_user(user_id: int) -> None:
+    db = SessionLocal()
+    db.query(User).filter(User.id == user_id).delete()
+    db.commit()
+    db.close()
 
 
 def test_demo_job_runs_via_fake_queue_and_updates_job_row() -> None:
@@ -42,6 +66,8 @@ def test_demo_job_runs_via_fake_queue_and_updates_job_row() -> None:
 
 
 def test_get_job_endpoint_returns_status_and_progress() -> None:
+    user = _create_user("estimator-4.2-jobs@example.com", "estimator")
+    _login_as(user)
     db = SessionLocal()
     try:
         job = Job(type="demo", status="running", progress=42)
@@ -58,15 +84,28 @@ def test_get_job_endpoint_returns_status_and_progress() -> None:
             "error": None,
         }
     finally:
+        client.cookies.clear()
         db.query(Job).filter(Job.id == job.id).delete()
         db.commit()
         db.close()
+        _delete_user(user.id)
 
 
 def test_get_job_endpoint_404_for_missing_job() -> None:
-    response = client.get("/jobs/999999999")
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "not_found"
+    user = _create_user("estimator-4.2-jobs-b@example.com", "estimator")
+    _login_as(user)
+    try:
+        response = client.get("/jobs/999999999")
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+    finally:
+        client.cookies.clear()
+        _delete_user(user.id)
+
+
+def test_get_job_endpoint_requires_login() -> None:
+    response = client.get("/jobs/1")
+    assert response.status_code == 401
 
 
 def test_create_demo_job_endpoint_creates_a_queued_job_row() -> None:

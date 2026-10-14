@@ -8,6 +8,16 @@ from pydantic import BaseModel, ConfigDict
 from app.ai.rules import RuleCondition
 
 
+class JobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    type: str
+    status: str
+    progress: int
+    error: str | None
+
+
 class ProjectCreate(BaseModel):
     name: str
 
@@ -39,6 +49,10 @@ class IfcFileOut(BaseModel):
     size_bytes: int
     status: str
     uploaded_at: datetime
+    # The latest Job for this file (Phase 4.2) - not an IfcFile column, so the
+    # router builds this field itself rather than relying on from_attributes.
+    # Without it the frontend has no way to know which job to poll after upload.
+    job_id: int | None = None
 
 
 class CodeListOut(BaseModel):

@@ -237,7 +237,36 @@ def test_upload_valid_ifc_file_creates_record_and_job() -> None:
         jobs = db.query(Job).filter(Job.ifc_file_id == body["id"]).all()
         assert len(jobs) == 1
         assert jobs[0].type == "extract"
+        # Phase 4.2: the frontend needs this to know which job to poll.
+        assert body["job_id"] == jobs[0].id
         db.close()
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(user.id)
+
+
+def test_list_files_includes_latest_job_id() -> None:
+    user = _create_user("estimator-4.2a@example.com", "estimator")
+    _login_as(user)
+    project_id = None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Job Id List Project"}
+        ).json()["id"]
+
+        with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+            upload_response = client.post(
+                f"/projects/{project_id}/files",
+                files={"file": ("sample.ifc", fh, "application/octet-stream")},
+            )
+        expected_job_id = upload_response.json()["job_id"]
+        assert expected_job_id is not None
+
+        list_response = client.get(f"/projects/{project_id}/files")
+        assert list_response.status_code == 200
+        assert list_response.json()[0]["job_id"] == expected_job_id
     finally:
         client.cookies.clear()
         if project_id is not None:

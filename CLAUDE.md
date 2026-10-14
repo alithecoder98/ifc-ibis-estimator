@@ -176,7 +176,7 @@ to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_
 Phase P and the decision log above for the full history.
 
 **Phase 3 — AI classification engine: fully complete (3.1–3.8).** Phase 2 (2.1–2.7)
-complete. **Phase 4 (frontend) started: 4.1 done.**
+complete. **Phase 4 (frontend) in progress: 4.1–4.2 done.**
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -465,6 +465,27 @@ browser/computer-use tool was available in this environment, so every real API
 call the hooks make was exercised directly against the live backend (confirmed
 correct shapes/behavior), but the actual rendered UI was never click-tested in
 a browser - that's still unverified, not just untested.
-**Next up:** Phase 4.2 — upload flow (drag-and-drop IFC upload on the project
-page, upload progress, then job progress per step by polling `/jobs/{id}`,
-clear error states). No open decisions block it.
+**Also this session:** 4.2 (upload flow) done. **"Chunked" wasn't built** - the
+upload is still one server-proxied multipart POST (2.1's deliberate deferral);
+what shipped is real upload-progress via `XMLHttpRequest` (neither `fetch` nor
+the typed client fires upload-progress events). Surfaced two more real gaps:
+`IfcFileOut.job_id` (nothing told the frontend which job to poll) and
+`GET /jobs/{id}` got its first-ever auth check plus a real `JobOut` response
+model (previously anyone, logged in or not, could poll any job). `useUploadFile`
+/`useJob`/`jobStepLabel()` + `UploadDropzone` (idle/uploading/processing/done/
+error, all real, no fabricated step granularity beyond what the backend
+actually tracks). New shadcn: `progress`. 170/170 backend pytest, `tsc`/`eslint`/
+`pnpm build` clean. **Verified live for real** via curl mirroring the hooks
+exactly - real upload, real `job_id`, real polling to `done`, both real error
+paths. Same honest gap as 4.1: no browser tool available, so the actual
+rendered UI wasn't click-tested. **The stray-worker lesson bit a third variant
+of itself**: started a live worker for this verification, forgot to stop it
+before the next `pytest` run, got the exact 3.7-shaped race again. Standing
+rule reinforced, not just re-learned: stop the worker *before* every pytest
+run, not only after a restart.
+**Next up:** Phase 4.3 — results overview (cards for total/auto-accepted/
+needs-review/corrected counts, a table of totals per IBIS code, a warnings
+panel for missing quantities/proxies/unmapped elements). No open decisions
+block it, though the counts will be genuinely small/uninteresting until a
+real project with real classifications exists to look at - same "mechanism
+is real, data is thin" situation as every self-tested-only backend sub-phase.

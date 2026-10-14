@@ -26,6 +26,7 @@
       "get": {
         "tags": ["jobs"],
         "summary": "Get Job",
+        "description": "Had no auth check at all until Phase 4.2 - any request, authenticated or\nnot, could poll any job's progress/error. Matches the same role bar as every\nother read endpoint; true per-project authorization isn't a concept this app\nhas anywhere else either (any estimator can already list every project via\nGET /projects), so this doesn't invent one just for jobs.",
         "operationId": "get_job_jobs__job_id__get",
         "parameters": [
           {
@@ -33,6 +34,15 @@
             "in": "path",
             "required": true,
             "schema": { "type": "integer", "title": "Job Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
           }
         ],
         "responses": {
@@ -40,11 +50,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Job Jobs  Job Id  Get"
-                }
+                "schema": { "$ref": "#/components/schemas/JobOut" }
               }
             }
           },
@@ -397,7 +403,7 @@
       "get": {
         "tags": ["projects"],
         "summary": "List Files",
-        "description": "Phase 4.1 - the frontend has had no way to see a project's uploaded\nfile(s)/their status at all until now (POST creates one, but nothing listed\nit back). project.status itself is never updated by the pipeline (still\nalways \"draft\") - real per-upload progress lives on IfcFile.status, which is\nwhat this exposes.",
+        "description": "Phase 4.1 - the frontend has had no way to see a project's uploaded\nfile(s)/their status at all until now (POST creates one, but nothing listed\nit back). project.status itself is never updated by the pipeline (still\nalways \"draft\") - real per-upload progress lives on IfcFile.status, which is\nwhat this exposes. job_id (Phase 4.2) lets the frontend poll a still-running\nupload's real progress via GET /jobs/{id}.",
         "operationId": "list_files_projects__project_id__files_get",
         "parameters": [
           {
@@ -1077,6 +1083,10 @@
             "type": "string",
             "format": "date-time",
             "title": "Uploaded At"
+          },
+          "job_id": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Job Id"
           }
         },
         "type": "object",
@@ -1090,6 +1100,21 @@
           "uploaded_at"
         ],
         "title": "IfcFileOut"
+      },
+      "JobOut": {
+        "properties": {
+          "id": { "type": "integer", "title": "Id" },
+          "type": { "type": "string", "title": "Type" },
+          "status": { "type": "string", "title": "Status" },
+          "progress": { "type": "integer", "title": "Progress" },
+          "error": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": ["id", "type", "status", "progress", "error"],
+        "title": "JobOut"
       },
       "LoginRequest": {
         "properties": {

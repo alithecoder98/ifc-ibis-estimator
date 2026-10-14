@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExportButton } from "@/components/projects/export-button";
 import { ProjectDialog } from "@/components/projects/project-dialog";
+import { UploadDropzone } from "@/components/projects/upload-dropzone";
 import { statusBadge } from "@/lib/projects/status-badge";
 import { useProject } from "@/lib/projects/use-project";
 import { useProjectFiles } from "@/lib/projects/use-project-files";
@@ -68,6 +69,8 @@ export default function ProjectDetailPage() {
             </CardContent>
           </Card>
 
+          <UploadDropzone projectId={projectId} />
+
           <div className="space-y-2">
             <h2 className="text-sm font-medium">Files</h2>
             {files && files.length > 0 ? (
@@ -91,7 +94,7 @@ export default function ProjectDetailPage() {
               })
             ) : (
               <p className="text-muted-foreground text-sm">
-                No file uploaded yet - the upload flow arrives in Phase 4.2.
+                No file uploaded yet.
               </p>
             )}
           </div>

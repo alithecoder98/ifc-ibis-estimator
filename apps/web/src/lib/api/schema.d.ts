@@ -28,7 +28,14 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get Job */
+    /**
+     * Get Job
+     * @description Had no auth check at all until Phase 4.2 - any request, authenticated or
+     *     not, could poll any job's progress/error. Matches the same role bar as every
+     *     other read endpoint; true per-project authorization isn't a concept this app
+     *     has anywhere else either (any estimator can already list every project via
+     *     GET /projects), so this doesn't invent one just for jobs.
+     */
     get: operations["get_job_jobs__job_id__get"];
     put?: never;
     post?: never;
@@ -162,7 +169,8 @@ export interface paths {
      *     file(s)/their status at all until now (POST creates one, but nothing listed
      *     it back). project.status itself is never updated by the pipeline (still
      *     always "draft") - real per-upload progress lives on IfcFile.status, which is
-     *     what this exposes.
+     *     what this exposes. job_id (Phase 4.2) lets the frontend poll a still-running
+     *     upload's real progress via GET /jobs/{id}.
      */
     get: operations["list_files_projects__project_id__files_get"];
     put?: never;
@@ -405,6 +413,21 @@ export interface components {
        * Format: date-time
        */
       uploaded_at: string;
+      /** Job Id */
+      job_id?: number | null;
+    };
+    /** JobOut */
+    JobOut: {
+      /** Id */
+      id: number;
+      /** Type */
+      type: string;
+      /** Status */
+      status: string;
+      /** Progress */
+      progress: number;
+      /** Error */
+      error: string | null;
     };
     /** LoginRequest */
     LoginRequest: {
@@ -588,7 +611,9 @@ export interface operations {
       path: {
         job_id: number;
       };
-      cookie?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
     };
     requestBody?: never;
     responses: {
@@ -598,9 +623,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            [key: string]: unknown;
-          };
+          "application/json": components["schemas"]["JobOut"];
         };
       };
       /** @description Validation Error */
