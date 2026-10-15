@@ -49,6 +49,15 @@ class Element(Base):
     ifc_file_id: Mapped[int] = mapped_column(
         ForeignKey("ifc_files.id"), nullable=False, index=True
     )
+    # Set only on a row created by splitting a composite element into its
+    # material layers (Phase 6.2) - each split-out layer is a real Element of
+    # its own (own quantities, own classification, own review lifecycle),
+    # pointing back at the original row it was split from. Null for every
+    # element that was never split and for every element that hasn't been
+    # split *into* (i.e. isn't itself a layer).
+    parent_element_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elements.id"), nullable=True, index=True
+    )
     global_id: Mapped[str] = mapped_column(String(22), nullable=False, index=True)
     ifc_class: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     predefined_type: Mapped[str | None] = mapped_column(String(100), nullable=True)

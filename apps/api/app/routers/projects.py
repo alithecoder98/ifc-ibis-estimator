@@ -15,9 +15,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.ai.composite_split import AlreadySplitError, NotCompositeError, split_element
 from app.ai.element_detail import get_element_detail
 from app.ai.elements import ElementRow, list_element_rows
 from app.ai.embedder import get_embedder
+from app.ai.excel_export import build_export_xlsx
 from app.ai.export import build_export_csv
 from app.ai.reviews import ReviewError, approve_element, correct_element, undo_review
 from app.ai.summary import compute_summary, latest_classifications_by_element
@@ -44,6 +46,7 @@ from app.schemas import (
     ReviewActionOut,
     ReviewCreate,
     ReviewOut,
+    SplitElementOut,
 )
 from app.storage import download_bytes, upload_fileobj
 from app.workers.classification import reclassify_ifc_file
@@ -196,7 +199,14 @@ def upload_ifc_file(
         db.commit()
         db.refresh(ifc_file)
 
-        get_queue().enqueue(process_ifc_file, job.id, ifc_file.id)
+        # RQ's default job_timeout is 180s - confirmed live against real IFC
+        # files that a file with many element groups (one LLM classification
+        # call per group) blows well past that during classify, hard-killing
+        # an otherwise-succeeding job ("Task exceeded maximum timeout value
+        # (180 seconds)"). 1200s gives real headroom over the MVP's own
+        # stated "100MB model processes in <10 min" target rather than
+        # cutting it off at under half that.
+        get_queue().enqueue(process_ifc_file, job.id, ifc_file.id, job_timeout=1200)
 
         # job.id is already known here - skip _ifc_file_out()'s extra query.
         return IfcFileOut.model_validate(ifc_file).model_copy(update={"job_id": job.id})
@@ -330,7 +340,92 @@ def get_element(
         candidates=detail.candidates,
         similar_examples=detail.similar_examples,
         reviews=detail.reviews,
+        split_child_ids=detail.split_child_ids,
     )
+
+
+@router.post(
+    "/{project_id}/elements/{element_id}/split",
+    response_model=SplitElementOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def split_element_endpoint(
+    project_id: int,
+    element_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator")),
+) -> SplitElementOut:
+    """Phase 6.2 - splits a composite element (e.g. a multi-layer wall) into
+    one real Element row per material layer. See app/ai/composite_split.py
+    for the quantity-splitting and double-counting-avoidance details.
+    """
+    element = db.get(Element, element_id)
+    ifc_file = db.get(IfcFile, element.ifc_file_id) if element is not None else None
+    if element is None or ifc_file is None or ifc_file.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="element not found"
+        )
+
+    try:
+        children = split_element(db, element_id)
+    except NotCompositeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except AlreadySplitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+
+    db.commit()
+    return SplitElementOut(child_element_ids=[c.id for c in children])
+
+
+def _export_rows(
+    db: Session, project_id: int
+) -> list[tuple[Element, list[Quantity], Classification | None]]:
+    """Shared by both export formats (CSV, Phase P.3; the .xlsx export below -
+    a partial first step toward Phase 7.1, see app/ai/excel_export.py's
+    module docstring) so the split-parent exclusion (Phase 6.2 - a split
+    element's own quantity would otherwise double-count against its new
+    children's) only lives in one place.
+    """
+    ifc_file_ids = [
+        f.id for f in db.query(IfcFile).filter(IfcFile.project_id == project_id)
+    ]
+    split_parent_ids = (
+        {
+            row[0]
+            for row in db.query(Element.parent_element_id)
+            .filter(Element.parent_element_id.isnot(None))
+            .distinct()
+        }
+        if ifc_file_ids
+        else set()
+    )
+    elements = (
+        db.query(Element)
+        .filter(
+            Element.ifc_file_id.in_(ifc_file_ids),
+            Element.id.notin_(split_parent_ids) if split_parent_ids else True,
+        )
+        .order_by(Element.id)
+        .all()
+        if ifc_file_ids
+        else []
+    )
+
+    rows = []
+    for element in elements:
+        quantities = db.query(Quantity).filter(Quantity.element_id == element.id).all()
+        classification = (
+            db.query(Classification)
+            .filter(Classification.element_id == element.id)
+            .order_by(Classification.created_at.desc())
+            .first()
+        )
+        rows.append((element, quantities, classification))
+    return rows
 
 
 @router.get("/{project_id}/export")
@@ -348,34 +443,40 @@ def export_project_csv(
             status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
         )
 
-    ifc_file_ids = [
-        f.id for f in db.query(IfcFile).filter(IfcFile.project_id == project_id)
-    ]
-    elements = (
-        db.query(Element)
-        .filter(Element.ifc_file_id.in_(ifc_file_ids))
-        .order_by(Element.id)
-        .all()
-        if ifc_file_ids
-        else []
-    )
-
-    rows = []
-    for element in elements:
-        quantities = db.query(Quantity).filter(Quantity.element_id == element.id).all()
-        classification = (
-            db.query(Classification)
-            .filter(Classification.element_id == element.id)
-            .order_by(Classification.created_at.desc())
-            .first()
-        )
-        rows.append((element, quantities, classification))
-
-    csv_text = build_export_csv(rows)
+    csv_text = build_export_csv(_export_rows(db, project_id))
     filename = f"project-{project_id}-export.csv"
     return Response(
         content=csv_text,
         media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{project_id}/export.xlsx")
+def export_project_excel(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator", "viewer")),
+) -> Response:
+    """A partial first step toward Phase 7.1 (not Phase 6.6, which is "Audit
+    trail" - a different, unbuilt feature - see app/ai/excel_export.py's
+    module docstring for the full correction). Same data as the CSV export,
+    as a real .xlsx workbook (frozen header, column widths, autofilter). Not
+    the client's real IBIS import format or 7.1's full three-sheet spec -
+    just a genuinely Excel-shaped single sheet to open today, swappable
+    later without touching how rows are queried (see _export_rows above).
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
+
+    xlsx_bytes = build_export_xlsx(_export_rows(db, project_id))
+    filename = f"project-{project_id}-export.xlsx"
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
@@ -460,7 +561,9 @@ def classify_file(
     job = create_job(db, type="classify", project_id=project_id, ifc_file_id=file_id)
     db.commit()
 
-    get_queue().enqueue(reclassify_ifc_file, job.id, file_id)
+    # Same job_timeout reasoning as the extract enqueue above - reclassify
+    # hits the same per-group LLM classification step.
+    get_queue().enqueue(reclassify_ifc_file, job.id, file_id, job_timeout=1200)
 
     return {"id": job.id}
 

@@ -5,12 +5,32 @@ app/ai/classify.py - this router only manages the Rule rows.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.ai.rule_suggestions import generate_rule_suggestions
 from app.core.deps import require_role
 from app.db.models import Rule, User
 from app.db.session import get_db
-from app.schemas import RuleCreate, RuleOut, RuleUpdate
+from app.schemas import RuleCreate, RuleOut, RuleSuggestOut, RuleUpdate
 
 router = APIRouter(prefix="/rules", tags=["rules"])
+
+
+@router.post(
+    "/suggest", response_model=RuleSuggestOut, status_code=status.HTTP_201_CREATED
+)
+def suggest_rules(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+) -> RuleSuggestOut:
+    """Phase 6.5 - scans every correction for repeated patterns and proposes
+    new status="suggested" rules. See app/ai/rule_suggestions.py.
+    """
+    result = generate_rule_suggestions(db)
+    db.commit()
+    for rule in result.created:
+        db.refresh(rule)
+    return RuleSuggestOut(
+        created=result.created, already_covered_count=result.already_covered_count
+    )
 
 
 @router.post("", response_model=RuleOut, status_code=status.HTTP_201_CREATED)

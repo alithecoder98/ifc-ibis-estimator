@@ -93,8 +93,27 @@ def compute_summary(db: Session, project_id: int) -> ProjectSummary:
     ifc_file_ids = [
         f.id for f in db.query(IfcFile).filter(IfcFile.project_id == project_id)
     ]
+    # Excludes elements that have been split into layers (Phase 6.2) - once
+    # split, the split-out child rows are the ones with real quantities/
+    # classifications going forward, so counting the original composite row
+    # too would double its quantity against its own children's.
+    split_parent_ids = (
+        {
+            row[0]
+            for row in db.query(Element.parent_element_id)
+            .filter(Element.parent_element_id.isnot(None))
+            .distinct()
+        }
+        if ifc_file_ids
+        else set()
+    )
     elements = (
-        db.query(Element).filter(Element.ifc_file_id.in_(ifc_file_ids)).all()
+        db.query(Element)
+        .filter(
+            Element.ifc_file_id.in_(ifc_file_ids),
+            Element.id.notin_(split_parent_ids) if split_parent_ids else True,
+        )
+        .all()
         if ifc_file_ids
         else []
     )

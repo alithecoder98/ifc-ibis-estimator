@@ -56,6 +56,10 @@ class ElementDetail:
     candidates: list[CandidateDetail] = field(default_factory=list)
     similar_examples: list[ExampleMemory] = field(default_factory=list)
     reviews: list[ReviewDetail] = field(default_factory=list)
+    # Non-empty only once this element has been split into its material
+    # layers (Phase 6.2) - each id is a real sibling Element row, not a
+    # sub-record, so the frontend just treats them as elements to look up.
+    split_child_ids: list[int] = field(default_factory=list)
 
 
 def get_element_detail(
@@ -114,6 +118,13 @@ def get_element_detail(
             for review, email in review_rows
         ]
 
+    split_child_ids = [
+        row[0]
+        for row in db.query(Element.id)
+        .filter(Element.parent_element_id == element_id)
+        .all()
+    ]
+
     return ElementDetail(
         element=element,
         quantities=quantities,
@@ -121,4 +132,5 @@ def get_element_detail(
         candidates=candidates,
         similar_examples=examples,
         reviews=reviews,
+        split_child_ids=split_child_ids,
     )

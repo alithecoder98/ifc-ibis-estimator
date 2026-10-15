@@ -25,6 +25,7 @@ class ElementRowOut(BaseModel):
     internal_element: str | None
     confidence: float | None
     status: str | None
+    is_split_parent: bool
 
 
 class QuantityOut(BaseModel):
@@ -96,6 +97,11 @@ class ElementDetailOut(BaseModel):
     candidates: list[CandidateOut]
     similar_examples: list[SimilarExampleOut]
     reviews: list[ReviewOut]
+    split_child_ids: list[int]
+
+
+class SplitElementOut(BaseModel):
+    child_element_ids: list[int]
 
 
 class ReviewCreate(BaseModel):
@@ -222,6 +228,14 @@ class RuleOut(BaseModel):
     priority: int
     status: str
     created_at: datetime
+    # Review ids that justified a *suggested* rule (Phase 6.5) - null for a
+    # manually-created rule, which was never derived from corrections.
+    source_corrections: list[int] | None
+
+
+class RuleSuggestOut(BaseModel):
+    created: list[RuleOut]
+    already_covered_count: int
 
 
 class ThresholdOut(BaseModel):

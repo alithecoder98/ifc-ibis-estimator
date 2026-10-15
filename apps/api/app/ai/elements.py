@@ -31,6 +31,12 @@ class ElementRow:
     internal_element: str | None
     confidence: float | None
     status: str | None
+    # True once this element has been split into material layers (Phase
+    # 6.2) - still shown in this table for context (an estimator should be
+    # able to see that the original row was split, not have it vanish), but
+    # its own quantity is excluded from summary/export totals in favor of
+    # its new children's, which are real rows in this same list.
+    is_split_parent: bool
 
 
 def _material_summary(materials: list[dict] | None) -> str | None:
@@ -50,6 +56,17 @@ def list_element_rows(db: Session, project_id: int) -> list[ElementRow]:
         else []
     )
     element_ids = [e.id for e in elements]
+
+    split_parent_ids = (
+        {
+            row[0]
+            for row in db.query(Element.parent_element_id)
+            .filter(Element.parent_element_id.in_(element_ids))
+            .distinct()
+        }
+        if element_ids
+        else set()
+    )
 
     latest_by_element = latest_classifications_by_element(db, element_ids)
 
@@ -84,6 +101,7 @@ def list_element_rows(db: Session, project_id: int) -> list[ElementRow]:
                 ),
                 confidence=classification.confidence if classification else None,
                 status=classification.status if classification else None,
+                is_split_parent=element.id in split_parent_ids,
             )
         )
     return rows
