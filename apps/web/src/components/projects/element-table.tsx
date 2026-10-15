@@ -185,13 +185,22 @@ export function ElementTable({ projectId }: { projectId: number }) {
     search,
   ]);
 
+  // Must stay referentially stable across renders - a fresh [] literal inline
+  // in `state.grouping` below (with no onGroupingChange handler) made TanStack
+  // Table think grouping changed on every single render, triggering an
+  // internal reset that re-rendered this component hundreds of times per
+  // second with zero user interaction and zero network calls. Only found by
+  // actually rendering the page in a browser - no test or curl-based check
+  // could have caught a pure client-side render storm like this.
+  const grouping = useMemo(() => (grouped ? ["group_hash"] : []), [grouped]);
+
   const table = useReactTable({
     data: filteredData,
     columns,
     state: {
       sorting,
       columnVisibility,
-      grouping: grouped ? ["group_hash"] : [],
+      grouping,
     },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,

@@ -772,6 +772,22 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       tool available, so `J`/`K` and the new skeleton/empty/retry states were
       confirmed to compile and render without a server error, but never
       visually or interactively click-tested.
+      ⏸️ 2026-10-15 — That gap closed for real: a real headless Chromium
+      (Playwright, installed into a scratch directory, not a project
+      dependency) drove the actual running app for the first time all
+      project. Confirmed 4.1-4.6 all render correctly with real data, and
+      found + fixed a real, severe, pre-existing (since 4.4, not caused by
+      4.7) infinite re-render loop in `ElementTable` - an inline
+      `grouped ? ["group_hash"] : []` array passed to `useReactTable`'s
+      `state.grouping` with no `onGroupingChange` handler, a fresh reference
+      every render that TanStack Table read as "changed" every time,
+      triggering an internal reset forever. Confirmed via render counters and
+      a CDP CPU profile (3,600+ renders/5s idle, zero network calls),
+      confirmed present in a real production build (not a dev/HMR artifact),
+      fixed with one `useMemo`. See CLAUDE.md's matching entry for full
+      detail, including the CORS/`localhost`-vs-`127.0.0.1` and Base UI
+      click-dispatch gotchas hit along the way. `J`/`K` navigation itself now
+      confirmed actually working in a real browser, not just compiling.
 
 ## Phase 5 — 3D viewer (weeks 6.5–8)
 - [ ] **5.1 Viewer component** — load fragments, camera controls, fit, storey filter, clipping, isolate.

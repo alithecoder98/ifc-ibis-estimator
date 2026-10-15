@@ -699,6 +699,58 @@ backend command is a code problem** - this is a different failure shape
 than every earlier "stray worker" process-hygiene note (nothing stray here,
 just nothing running at all), so it's documented as its own case, not folded
 into that one.
+**This session (2026-10-15, continued):** user asked to "launch it" - first
+time this environment has had a real browser available. Installed Playwright
++ a real headless Chromium into a scratch directory (not a project
+dependency) and drove the actual running app for the first time all project,
+closing the "no browser tool available" gap every frontend sub-phase from 4.1
+onward had to flag honestly. Seeded a real project through the real pipeline
+(upload → extract → classify) and screenshotted `/projects`, a project's
+Overview/Elements tabs, the element detail sheet, and all three `/admin`
+tabs - **4.1 through 4.6 all render correctly with real data**, first visual
+confirmation any of them have ever had.
+**Found a real, severe, pre-existing bug this way - invisible to every prior
+curl-based or pytest-based check because it's pure client-side React, zero
+network calls:** clicking into a project's Elements tab put `ElementTable`
+into a sustained re-render loop (confirmed 2,000-3,600+ renders in 5 idle
+seconds, zero user interaction, via injected `console.log` render-counters
+and a CDP `Profiler` trace) - severe enough to make the tab borderline
+unresponsive to real interaction (this is *why* J/K's Playwright click/keypress
+kept mysteriously timing out earlier in the session; that was a downstream
+symptom, not a separate bug). **Confirmed pre-existing, not caused by
+4.7**: reproduced with 4.7's own J/K effect fully disabled, and reproduced
+identically in a real `pnpm build` + `next start` production server, so
+it's neither a 4.7 regression nor a dev-mode/HMR artifact - it's been there
+since 4.4 first wrote this component, just never visible until there was a
+real browser to see it in. **Root cause**: `state.grouping` was passed to
+`useReactTable` as an inline `grouped ? ["group_hash"] : []` literal - a
+fresh array *reference* every render - with no `onGroupingChange` handler.
+TanStack Table read that as "grouping changed" on literally every render and
+fired an internal reset that forced another render, forever. **Fix**:
+memoize that array (`useMemo(() => grouped ? [...] : [], [grouped])`) -
+confirmed via the same instrumented production build that this took render
+count from 3,600+/5s down to **zero** idle renders. **New standing lesson,
+worth remembering for any future TanStack Table usage in this project: a
+piece of `state` passed to `useReactTable` without a matching
+`onXChange` handler must be referentially stable (memoized), not a fresh
+literal computed inline every render** - TanStack Table has no way to tell
+"logically unchanged" from "new reference" apart in that configuration, and
+assumes the latter always means real change. One-line, tightly-scoped fix
+(`apps/web/src/components/projects/element-table.tsx`), no backend changes.
+`tsc`/`eslint`/Prettier clean, a real `pnpm build` clean, 196/196 backend
+pytest as a sanity check (no backend code touched). All live-test data
+(project, code list rows, dev user) and every scratch Playwright/Chromium
+install cleaned up afterward.
+**Also worth remembering**: Playwright's browser process must be driven with
+`http://localhost:3000`, not `http://127.0.0.1:3000` - the backend's CORS
+config only allowlists the `localhost` origin by default, so `127.0.0.1`
+silently fails every API call and the app correctly-but-confusingly redirects
+to `/login`, which looks exactly like an auth bug but isn't one. Also: Base
+UI's `Tabs`/`Select` triggers don't reliably respond to Playwright's native
+`.click()` (even with `force: true`) in this app - a real DOM-dispatched
+event sequence (`pointerdown`/`mousedown`/`pointerup`/`mouseup`/`click` via
+`page.evaluate`) works reliably instead; root cause not fully chased down
+since the dispatched-event workaround was sufficient.
 **Next up:** Phase 5 (3D viewer) or Phase 6.1 (Review API + UI) - either can
 go next; 6.1 is also what finishes 4.7's remaining piece. No open decisions
 block either.
