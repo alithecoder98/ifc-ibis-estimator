@@ -1,6 +1,8 @@
 "use client";
 
+import { ChevronRight, FolderKanban } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +16,7 @@ import { statusBadge } from "@/lib/projects/status-badge";
 import { useProjects } from "@/lib/projects/use-projects";
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const { data: projects, isLoading, isError, refetch } = useProjects();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -63,15 +66,21 @@ export default function ProjectsPage() {
           const badge = statusBadge(project.status);
           return (
             <Link key={project.id} href={`/projects/${project.id}`}>
-              <Card className="hover:bg-muted/50 transition-colors">
+              <Card className="hover:border-primary/40 transition-all hover:shadow-sm">
                 <CardContent className="flex items-center justify-between">
-                  <span className="font-medium">{project.name}</span>
+                  <div className="flex items-center gap-3">
+                    <div className="bg-accent text-accent-foreground flex h-9 w-9 items-center justify-center rounded-lg">
+                      <FolderKanban className="h-4.5 w-4.5" />
+                    </div>
+                    <span className="font-medium">{project.name}</span>
+                  </div>
                   <div className="flex items-center gap-4">
                     <span className="text-muted-foreground text-xs">
                       Updated{" "}
                       {new Date(project.updated_at).toLocaleDateString()}
                     </span>
                     <Badge variant={badge.variant}>{badge.label}</Badge>
+                    <ChevronRight className="text-muted-foreground h-4 w-4" />
                   </div>
                 </CardContent>
               </Card>
@@ -80,7 +89,11 @@ export default function ProjectsPage() {
         })}
       </div>
 
-      <ProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <ProjectDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSaved={(projectId) => router.push(`/projects/${projectId}`)}
+      />
     </div>
   );
 }
