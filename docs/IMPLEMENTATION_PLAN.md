@@ -790,7 +790,71 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       confirmed actually working in a real browser, not just compiling.
 
 ## Phase 5 — 3D viewer (weeks 6.5–8)
-- [ ] **5.1 Viewer component** — load fragments, camera controls, fit, storey filter, clipping, isolate.
+- [x] **5.1 Viewer component** — load fragments, camera controls, fit, storey filter, clipping, isolate.
+      ✅ 2026-10-15 — New frontend dependencies, all pinned to exactly match the
+      versions `node_fragments/`'s server-side converter already uses (so a
+      `.frag` file produced there is guaranteed compatible with what loads it
+      here): `@thatopen/components@3.4.8`, `@thatopen/fragments@3.4.8`,
+      `three@0.186.1`, `web-ifc@0.0.78`, plus the required peer
+      `camera-controls@3.1.2` and (dev-only) `@types/three` - three.js ships no
+      bundled types itself at this version. Read the real installed `.d.ts`
+      for every class actually used before writing any component code (same
+      discipline as 4.4's TanStack Table trap) - `Components`/`Worlds`/
+      `SimpleWorld`/`SimpleScene`/`SimpleRenderer`/`OrthoPerspectiveCamera`/
+      `FragmentsManager`/`Hider`/`Clipper`, all genuinely verified against
+      the package, not recalled from training data. New backend endpoint
+      `GET /projects/{id}/files/{id}/fragment-ids` returning the existing
+      `fragment_id_map` column as plain JSON - needed now, not deferred to
+      5.2, since the storey filter and isolate features in 5.1 itself need to
+      map an element's GlobalId to its fragment's local id; kept as its own
+      route rather than folded into `IfcFileOut` since it can be a large
+      payload nothing else needs. `viewer-3d.tsx` is dynamically imported with
+      `ssr: false` (WebGL can't run server-side) and only actually mounted
+      while the 3D tab is the active one (`Tabs` made controlled via
+      `value`/`onValueChange` in the page, not just relying on Base UI's own
+      CSS-based hide, which keeps every panel mounted) - confirmed via a real
+      production build that this keeps the ~5MB+ of new libraries out of the
+      main bundle (`/projects/[id]`'s First Load JS barely grew). 2 new
+      backend tests (fragment-ids happy path + 404-before-processing),
+      208/208 total (×2, no leaks), `tsc`/`eslint`/Prettier/a real `pnpm
+      build` all clean.
+      **Verified live with a real browser against a real converted model**
+      (Playwright + swiftshader software WebGL, since this dev machine's
+      headless Chromium has no real GPU access) - genuine 3D geometry
+      rendered (a real small building, correct per-material coloring), fit-
+      to-model confirmed correct (it also runs automatically right after
+      load, which is why a manual click after that looked like a no-op in an
+      early test - not a bug, just redundant with what already happened),
+      and the storey filter genuinely isolates to just that storey's
+      elements (confirmed visually: selecting "00 groundfloor" hid the roof
+      and left only the ground-floor walls). Clipping toggle/clear exercised
+      without error; the interactive double-click-to-cut gesture itself
+      wasn't exhaustively verified (hard to simulate reliably via synthetic
+      events against a tiny model, and is largely the library's own
+      documented, pre-tested behavior once wired up correctly).
+      **A real, fully blank-canvas bug found only by actually looking at the
+      rendered output, not by any compile/type check:** fragments loaded
+      silently produced an empty black viewport - no error, no warning in the
+      first pass - until a second, more careful console capture surfaced a
+      real library warning: `"model ... is being rendered before
+      useCamera() has been called. Frustum culling is disabled until a
+      camera is set."` Fixed by passing `camera` in the `.load()` options
+      *and* calling the loaded model's `useCamera()` explicitly - the `.d.ts`
+      documents the former as optional but the library's own runtime warning
+      makes clear the latter is required for anything to actually become
+      visible.
+      **Infrastructure interruptions hit mid-verification, neither caused by
+      this sub-phase's code:** the known port-8000/8002 ghost-listener class
+      recurred a third time, worked around by moving to port 8003 (now a
+      running list of affected ports: 8000, 8002, 8003 is not itself
+      affected, just the next one tried); and, separately, **Docker Desktop
+      stopped running entirely partway through live verification** (not a
+      ghost-listener symptom - `docker compose ps` failed outright, every
+      container and the API server itself were gone) - recovered with the
+      same restart procedure as the start of the 4.7 session. Both were
+      caught and fixed without disrupting the user's own concurrent,
+      unrelated use of the app in the same browser - confirmed their actual
+      project and session were intact after each recovery.
 - [ ] **5.2 Table ↔ viewer sync** — row click highlights/zooms; element click opens row + detail;
       multi-select for bulk review.
 - [ ] **5.3 Colour modes** — by status, by code family, flagged only.

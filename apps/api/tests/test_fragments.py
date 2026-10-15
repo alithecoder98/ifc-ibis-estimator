@@ -96,6 +96,97 @@ def test_get_fragments_model_returns_binary_after_processing() -> None:
         cleanup_project_cascade(project_id, user_id)
 
 
+def test_get_fragment_id_map_returns_global_id_to_local_id() -> None:
+    db = SessionLocal()
+    user = User(email="fragments-5.1@example.com", password_hash="x", role="estimator")
+    db.add(user)
+    db.flush()
+    project = Project(name="Fragment Id Map Test Project", created_by=user.id)
+    db.add(project)
+    db.commit()
+    db.refresh(user)
+    db.refresh(project)
+    project_id, user_id = project.id, user.id
+    try:
+        fixture_path = FIXTURES_DIR / "sample.ifc"
+        storage_key = "tests/5.1/sample.ifc"
+        with open(fixture_path, "rb") as fh:
+            upload_fileobj(fh, storage_key)
+
+        ifc_file = IfcFile(
+            project_id=project.id,
+            filename="sample.ifc",
+            storage_key=storage_key,
+            ifc_schema="IFC4",
+            size_bytes=fixture_path.stat().st_size,
+            uploaded_by=user.id,
+            status="uploaded",
+        )
+        db.add(ifc_file)
+        db.flush()
+        file_id = ifc_file.id
+        job = Job(type="extract", project_id=project.id, ifc_file_id=ifc_file.id)
+        db.add(job)
+        db.commit()
+
+        process_ifc_file(job.id, ifc_file.id)
+
+        db.refresh(ifc_file)
+        expected_map = ifc_file.fragment_id_map
+        assert expected_map  # at least one entry
+
+        client.cookies.set(
+            "access_token", create_access_token(user_id=user_id, role="estimator")
+        )
+        response = client.get(f"/projects/{project_id}/files/{file_id}/fragment-ids")
+        assert response.status_code == 200
+        body = response.json()
+        # JSON object keys are always strings - the DB's JSONB column already
+        # stores global_id as the key, so no int-vs-str coercion to check here,
+        # just that the route returns exactly what was computed and stored.
+        assert body == expected_map
+    finally:
+        client.cookies.clear()
+        db.close()
+        cleanup_project_cascade(project_id, user_id)
+
+
+def test_get_fragment_id_map_404_before_processing() -> None:
+    db = SessionLocal()
+    user = User(email="fragments-5.1b@example.com", password_hash="x", role="estimator")
+    db.add(user)
+    db.flush()
+    project = Project(name="Fragment Id Map Not Ready Project", created_by=user.id)
+    db.add(project)
+    db.commit()
+    db.refresh(user)
+    db.refresh(project)
+    project_id, user_id = project.id, user.id
+    try:
+        ifc_file = IfcFile(
+            project_id=project.id,
+            filename="sample.ifc",
+            storage_key="unused",
+            size_bytes=1,
+            uploaded_by=user.id,
+            status="uploaded",
+        )
+        db.add(ifc_file)
+        db.commit()
+        db.refresh(ifc_file)
+        file_id = ifc_file.id
+
+        client.cookies.set(
+            "access_token", create_access_token(user_id=user_id, role="estimator")
+        )
+        response = client.get(f"/projects/{project_id}/files/{file_id}/fragment-ids")
+        assert response.status_code == 404
+    finally:
+        client.cookies.clear()
+        db.close()
+        cleanup_project_cascade(project_id, user_id)
+
+
 def test_get_fragments_model_404_before_processing() -> None:
     db = SessionLocal()
     user = User(email="fragments-2.6b@example.com", password_hash="x", role="estimator")

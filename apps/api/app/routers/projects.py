@@ -387,7 +387,7 @@ def get_fragments_model(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "estimator", "viewer")),
 ) -> Response:
-    """Phase 2.6 — the converted That Open fragments file for the (not-yet-built) 3D
+    """Phase 2.6 — the converted That Open fragments file for the Phase 5.1
     viewer. 404 until the file's processing job has reached the fragments step.
     """
     ifc_file = db.get(IfcFile, file_id)
@@ -403,6 +403,32 @@ def get_fragments_model(
 
     fragments_bytes = download_bytes(ifc_file.fragments_storage_key)
     return Response(content=fragments_bytes, media_type="application/octet-stream")
+
+
+@router.get("/{project_id}/files/{file_id}/fragment-ids", response_model=dict[str, int])
+def get_fragment_id_map(
+    project_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator", "viewer")),
+) -> dict[str, int]:
+    """Phase 5.1 — {global_id: local_id} for the fragments model above, kept as
+    its own route rather than folded into IfcFileOut/the model response: it can
+    be a large payload for big models and nothing needs it except the viewer
+    actually being open (storey filter / isolate need it to map an element to
+    its fragment; 5.2's table<->viewer click sync will reuse this same route).
+    """
+    ifc_file = db.get(IfcFile, file_id)
+    if ifc_file is None or ifc_file.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="file not found"
+        )
+    if ifc_file.fragment_id_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="fragment id map not available yet",
+        )
+    return ifc_file.fragment_id_map
 
 
 @router.post(

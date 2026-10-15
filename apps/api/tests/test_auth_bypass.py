@@ -10,8 +10,6 @@ from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
 from app.core.deps import DEV_BYPASS_EMAIL
-from app.db.models import User
-from app.db.session import SessionLocal
 from app.main import app
 
 client = TestClient(app)
@@ -30,7 +28,12 @@ def test_me_works_without_cookie_when_auth_disabled() -> None:
     finally:
         os.environ["AUTH_DISABLED"] = "false"
         get_settings.cache_clear()
-        db = SessionLocal()
-        db.query(User).filter(User.email == DEV_BYPASS_EMAIL).delete()
-        db.commit()
-        db.close()
+        # Deliberately not deleting the dev-bypass user here (this test used
+        # to): app/core/deps.py's _get_or_create_dev_user() is a shared,
+        # idempotent identity, not data this test owns - deleting it broke the
+        # very first time someone actually used AUTH_DISABLED for real dev
+        # work in the browser (real projects FK onto that user, so the delete
+        # failed with a real ForeignKeyViolation, not a hypothetical one).
+        # This test's own assertions above already prove the bypass works
+        # correctly whether the row pre-existed or not - nothing here needs
+        # the row gone afterward.

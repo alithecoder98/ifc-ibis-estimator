@@ -283,10 +283,34 @@ export interface paths {
     };
     /**
      * Get Fragments Model
-     * @description Phase 2.6 — the converted That Open fragments file for the (not-yet-built) 3D
+     * @description Phase 2.6 — the converted That Open fragments file for the Phase 5.1
      *     viewer. 404 until the file's processing job has reached the fragments step.
      */
     get: operations["get_fragments_model_projects__project_id__files__file_id__model_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{project_id}/files/{file_id}/fragment-ids": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Fragment Id Map
+     * @description Phase 5.1 — {global_id: local_id} for the fragments model above, kept as
+     *     its own route rather than folded into IfcFileOut/the model response: it can
+     *     be a large payload for big models and nothing needs it except the viewer
+     *     actually being open (storey filter / isolate need it to map an element to
+     *     its fragment; 5.2's table<->viewer click sync will reuse this same route).
+     */
+    get: operations["get_fragment_id_map_projects__project_id__files__file_id__fragment_ids_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1462,6 +1486,42 @@ export interface operations {
         };
         content: {
           "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_fragment_id_map_projects__project_id__files__file_id__fragment_ids_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        file_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: number;
+          };
         };
       };
       /** @description Validation Error */

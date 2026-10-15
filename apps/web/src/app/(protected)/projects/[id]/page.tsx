@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
@@ -18,6 +19,17 @@ import { statusBadge } from "@/lib/projects/status-badge";
 import { useProject } from "@/lib/projects/use-project";
 import { useProjectFiles } from "@/lib/projects/use-project-files";
 
+// WebGL/Three.js can't run server-side, and even client-side this shouldn't
+// be in the initial bundle for a tab most sessions never open - dynamic
+// import with ssr:false, per PROMPTS.md's 5.1 spec.
+const Viewer3D = dynamic(
+  () => import("@/components/projects/viewer-3d").then((m) => m.Viewer3D),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-[600px] w-full rounded-lg" />,
+  },
+);
+
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>();
   const projectId = Number(params.id);
@@ -25,6 +37,7 @@ export default function ProjectDetailPage() {
   const { data: project, isLoading, isError, refetch } = useProject(projectId);
   const { data: files } = useProjectFiles(projectId);
   const [editOpen, setEditOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
 
   if (isLoading) {
     return (
@@ -57,7 +70,10 @@ export default function ProjectDetailPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value ?? "overview")}
+      >
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="elements">Elements</TabsTrigger>
@@ -119,9 +135,21 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="3d" className="pt-4">
-          <p className="text-muted-foreground text-sm">
-            The 3D viewer arrives in Phase 5.
-          </p>
+          {(() => {
+            const readyFile = files?.find((f) => f.status === "extracted");
+            if (!readyFile) {
+              return (
+                <p className="text-muted-foreground text-sm">
+                  Upload and extract a file to see it here.
+                </p>
+              );
+            }
+            // Only actually mounted while this tab is the active one - a
+            // hidden-but-mounted WebGL canvas would still hold a real context.
+            return activeTab === "3d" ? (
+              <Viewer3D projectId={projectId} fileId={readyFile.id} />
+            ) : null;
+          })()}
         </TabsContent>
 
         <TabsContent value="export" className="pt-4">

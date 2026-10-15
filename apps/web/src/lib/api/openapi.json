@@ -628,7 +628,7 @@
       "get": {
         "tags": ["projects"],
         "summary": "Get Fragments Model",
-        "description": "Phase 2.6 — the converted That Open fragments file for the (not-yet-built) 3D\nviewer. 404 until the file's processing job has reached the fragments step.",
+        "description": "Phase 2.6 — the converted That Open fragments file for the Phase 5.1\nviewer. 404 until the file's processing job has reached the fragments step.",
         "operationId": "get_fragments_model_projects__project_id__files__file_id__model_get",
         "parameters": [
           {
@@ -657,6 +657,59 @@
           "200": {
             "description": "Successful Response",
             "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/files/{file_id}/fragment-ids": {
+      "get": {
+        "tags": ["projects"],
+        "summary": "Get Fragment Id Map",
+        "description": "Phase 5.1 — {global_id: local_id} for the fragments model above, kept as\nits own route rather than folded into IfcFileOut/the model response: it can\nbe a large payload for big models and nothing needs it except the viewer\nactually being open (storey filter / isolate need it to map an element to\nits fragment; 5.2's table<->viewer click sync will reuse this same route).",
+        "operationId": "get_fragment_id_map_projects__project_id__files__file_id__fragment_ids_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "File Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "integer" },
+                  "title": "Response Get Fragment Id Map Projects  Project Id  Files  File Id  Fragment Ids Get"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",

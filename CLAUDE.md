@@ -222,7 +222,8 @@ Phase P and the decision log above for the full history.
 complete. **Phase 4 (frontend) in progress: 4.1–4.6 done, 4.7 still partial** -
 `A`/`C` shortcuts are now done (shipped as part of 6.1, see below), but a real
 committed Playwright E2E test still isn't - no Playwright setup exists in the repo
-at all yet. **Phase 6: 6.1 (Review API + UI) done**, 6.2+ not started.
+at all yet. **Phase 6: 6.1 (Review API + UI) done**, 6.2+ not started. **Phase 5
+(3D viewer): 5.1 (viewer component) done**, 5.2+ not started.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -815,7 +816,42 @@ exists in this repo yet at all (not even the npm dependency); this session's
 live verification used a throwaway scratch install, not a project asset.
 Setting that up for real is separate, unplanned scope - flagged for a
 decision, not added silently. 4.7's box stays partial until resolved.
-**Next up:** Phase 6.2 (composite split) or Phase 5 (3D viewer) - either can
-go next. Setting up real Playwright E2E infrastructure (to actually finish
-4.7) is also still open and worth a decision. No open decisions block 6.2 or
-5 specifically.
+**This session, continued:** the user asked to "open the app" - launched the
+real dev stack and opened it in their actual default browser (not a headless
+Playwright instance) for the first time all project. They immediately started
+using it for real: created their own project (named "32"), uploaded a real
+IFC file, extracted it. Walked through what the 3D tab's placeholder meant
+and pointed them at Elements (where the real functionality lives). They then
+picked **5.1 (3D viewer)** as the next sub-phase.
+**5.1 done** - see the matching `docs/IMPLEMENTATION_PLAN.md` entry for full
+detail (new pinned `@thatopen/*`/`three`/`web-ifc`/`camera-controls`
+dependencies, the new `fragment-ids` endpoint, dynamic-import-only-while-
+active mounting). **Built this sub-phase working concurrently with the
+user's own live session in the same running app** - a new situation this
+project hadn't had before (every prior sub-phase's live verification ran
+against an otherwise-idle dev environment). Required real care each time a
+restart was needed: confirming their actual data (the "32" project) survived
+every single time, never touching it, and creating fully separate disposable
+test projects for all of this sub-phase's own verification instead of
+reusing theirs.
+**Two infrastructure interruptions hit mid-session, neither caused by 5.1's
+own code, both recovered without data loss:** the port-8000-class ghost-
+listener problem recurred on port 8002 too (moved to 8003); and, separately,
+**Docker Desktop stopped running entirely** (not a ghost-listener symptom -
+`docker compose ps` failed outright, every container and the API process
+itself were gone) partway through verification - recovered with the same
+restart procedure as the start of the 4.7 session, and confirmed the user's
+session and project were untouched both times.
+**A real, fully-blank-canvas bug found only by actually looking at the
+rendered output** (not by any compile/type check, and invisible to the first
+console-log pass too): fragments loaded but the viewport stayed empty black
+until a `useCamera()` call was added - the library's own runtime warning
+("model is being rendered before useCamera() has been called") was the only
+thing that surfaced it. Fixed; confirmed live afterward with a real small
+building rendering correctly, fit-to-model and the storey filter both
+genuinely working (storey isolate visually confirmed: selecting one floor
+hides the rest of the model).
+**Next up:** Phase 5.2 (table↔viewer sync), Phase 6.2 (composite split), or
+continuing further into either phase - any can go next. Setting up real
+Playwright E2E infrastructure (to actually finish 4.7) is also still open
+and worth a decision. No open decisions block 5.2 or 6.2 specifically.
