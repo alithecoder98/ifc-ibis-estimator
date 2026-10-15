@@ -92,6 +92,24 @@ def import_codes(
     return code_rows
 
 
+def latest_code_list_version(db: Session) -> int | None:
+    """The max `CodeList.version` currently in the table, or None if it's empty -
+    every import shares one version number across all its rows (see
+    `import_codes_rows` above), so this is the same "current import" a re-import
+    supersedes. `list_codes()` (app/routers/codes.py) already filtered browse
+    results to this; every semantic-search query over `code_list` (this function,
+    plus app/ai/retrieval.py's shortlist_codes()/shortlist_codes_with_scores())
+    did not, so re-importing a code list (an explicitly supported, documented
+    action - "Each import adds a new version") made every superseded version of
+    every code show up as a duplicate candidate everywhere search touched
+    `code_list` except the one place that had already been fixed for it.
+    Confirmed live: a re-imported 3-row test list showed every code twice in the
+    review picker, with React's own duplicate-key warnings confirming it wasn't
+    just a rendering fluke.
+    """
+    return db.query(func.max(CodeList.version)).scalar()
+
+
 def search_codes(
     db: Session,
     query: str,
@@ -103,6 +121,9 @@ def search_codes(
     q = db.query(CodeList)
     if family is not None:
         q = q.filter(CodeList.family == family)
+    latest_version = latest_code_list_version(db)
+    if latest_version is not None:
+        q = q.filter(CodeList.version == latest_version)
     return (
         q.order_by(CodeList.embedding.cosine_distance(query_vector)).limit(limit).all()
     )

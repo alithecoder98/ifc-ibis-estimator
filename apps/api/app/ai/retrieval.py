@@ -14,6 +14,7 @@ process is exactly the shape of bug a single-job test run can't see.
 
 from sqlalchemy.orm import Session
 
+from app.ai.codes import latest_code_list_version
 from app.ai.embedder import OllamaEmbedder
 from app.db.models import CodeList, ExampleMemory
 
@@ -53,10 +54,14 @@ def shortlist_codes(
 ) -> list[CodeList]:
     [query_vector] = embedder.embed([profile_text])
 
+    latest_version = latest_code_list_version(db)
+
     def _search(filter_family: str | None) -> list[CodeList]:
         q = db.query(CodeList)
         if filter_family is not None:
             q = q.filter(CodeList.family == filter_family)
+        if latest_version is not None:
+            q = q.filter(CodeList.version == latest_version)
         return (
             q.order_by(CodeList.embedding.cosine_distance(query_vector))
             .limit(limit)
@@ -86,10 +91,14 @@ def shortlist_codes_with_scores(
     """
     [query_vector] = embedder.embed([profile_text])
 
+    latest_version = latest_code_list_version(db)
+
     def _search(filter_family: str | None) -> list[tuple[CodeList, float]]:
         q = db.query(CodeList, CodeList.embedding.cosine_distance(query_vector))
         if filter_family is not None:
             q = q.filter(CodeList.family == filter_family)
+        if latest_version is not None:
+            q = q.filter(CodeList.version == latest_version)
         return (
             q.order_by(CodeList.embedding.cosine_distance(query_vector))
             .limit(limit)

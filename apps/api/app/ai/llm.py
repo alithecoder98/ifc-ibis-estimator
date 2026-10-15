@@ -82,9 +82,27 @@ class OllamaLLMClient:
                 "format": _RESPONSE_JSON_SCHEMA,
                 "stream": False,
             },
-            timeout=180.0,
+            # 180s was tight enough to get hit for real on a large file's
+            # classification pass under sustained GPU load (many back-to-back
+            # calls on one consumer GPU) - confirmed live on a 47MB real file
+            # (`Ifc2x3_SampleCastle.ifc`), where a single call legitimately
+            # took longer than 180s and killed an otherwise-healthy job at
+            # 87% progress. 480s gives real headroom per call while still
+            # leaving most of the job-level 1200s budget (app/routers/
+            # projects.py) for the many other calls in the same run.
+            timeout=480.0,
         )
-        response.raise_for_status()
+        # Bare raise_for_status() discards Ollama's actual error body, leaving
+        # only httpx's generic "500 Internal Server Error" in stored job
+        # errors - confirmed live against a real classification failure where
+        # that generic message gave no way to diagnose what actually went
+        # wrong upstream.
+        if response.is_error:
+            raise httpx.HTTPStatusError(
+                f"Ollama chat request failed: {response.status_code} - {response.text[:500]}",
+                request=response.request,
+                response=response,
+            )
         body = response.json()
         parsed = json.loads(body["message"]["content"])
         return (
@@ -173,7 +191,22 @@ def classify_with_llm(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
             )
-        except (json.JSONDecodeError, ValidationError, ValueError, KeyError) as exc:
+        except (
+            json.JSONDecodeError,
+            ValidationError,
+            ValueError,
+            KeyError,
+            httpx.HTTPError,
+        ) as exc:
+            # httpx.HTTPError (covers HTTPStatusError and timeouts) wasn't
+            # caught here before - confirmed live that it isn't just a
+            # theoretical gap: a real 47MB file hit Ollama's own
+            # "prediction aborted, token repeat limit reached" safety net on
+            # one element group among 2000+, and because HTTPStatusError
+            # wasn't in this tuple it propagated straight out of
+            # classify_elements() and killed the entire otherwise-successful
+            # job instead of retrying and failing safe on just that one
+            # group, same as every other classification failure mode here.
             last_error = exc
             logger.warning(
                 "LLM classification attempt %d/%d failed: %s",

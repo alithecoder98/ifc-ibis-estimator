@@ -22,7 +22,23 @@ def get_s3_client():
         aws_access_key_id=settings.s3_access_key,
         aws_secret_access_key=settings.s3_secret_key,
         region_name=settings.s3_region,
-        config=Config(signature_version="s3v4"),
+        config=Config(
+            signature_version="s3v4",
+            # botocore 1.36+ defaults to opportunistically validating S3
+            # response checksums whenever the server advertises support.
+            # Garage (and other S3-compatible backends - MinIO, Ceph, etc.)
+            # compute checksums for multipart-uploaded objects differently
+            # than real AWS S3, so botocore's own recomputed checksum never
+            # matches and every object above boto3's default ~8MB multipart
+            # threshold fails to download with a ChecksumError - confirmed
+            # live: every real-world IFC file over 8MB failed this way,
+            # every file under it succeeded. "when_required" restores the
+            # pre-1.36 behavior (only validate when an operation explicitly
+            # requires it), which is AWS's own documented fix for non-AWS
+            # S3-compatible endpoints.
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+        ),
     )
 
 
