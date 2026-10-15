@@ -75,7 +75,7 @@ CLASSIFICATION_STATUSES = ("auto_accepted", "needs_review")
 
 
 class Review(Base):
-    """An estimator's approve/correct/split action on a classification (Phase 6.1)."""
+    """An estimator's approve/correct/split/undo action on a classification (Phase 6.1)."""
 
     __tablename__ = "reviews"
 
@@ -86,7 +86,7 @@ class Review(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     action: Mapped[str] = mapped_column(
         String(20), nullable=False
-    )  # approve/correct/split
+    )  # approve/correct/split/undo
     before: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     after: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)

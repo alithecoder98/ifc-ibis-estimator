@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+
 import {
   Sheet,
   SheetContent,
@@ -8,11 +10,16 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/error-state";
+import { CodePickerDialog } from "@/components/projects/code-picker-dialog";
 import { statusBadge } from "@/lib/projects/status-badge";
 import { useElementDetail } from "@/lib/projects/use-element-detail";
+import { useReviewElement } from "@/lib/reviews/use-review-element";
+import { useUndoReview } from "@/lib/reviews/use-undo-review";
 
 function Section({
   title,
@@ -44,6 +51,67 @@ export function ElementDetailSheet({
     isError,
     refetch,
   } = useElementDetail(projectId, elementId);
+
+  const [comment, setComment] = useState("");
+  const [codePickerOpen, setCodePickerOpen] = useState(false);
+  const reviewElement = useReviewElement(projectId, elementId ?? -1);
+  const undoReview = useUndoReview(projectId);
+
+  const handleApprove = useCallback(() => {
+    reviewElement.mutate(
+      { action: "approve", comment: comment || null },
+      { onSuccess: () => setComment("") },
+    );
+  }, [reviewElement, comment]);
+
+  function handleCorrect(code: { ibis_code: string }) {
+    reviewElement.mutate(
+      {
+        action: "correct",
+        ibis_code: code.ibis_code,
+        comment: comment || null,
+      },
+      { onSuccess: () => setComment("") },
+    );
+  }
+
+  const mostRecentReview = detail?.reviews.at(-1);
+
+  // A approves, C opens the correction code picker - only while the sheet is
+  // open and an element has loaded. Ignored while typing in an input/textarea
+  // (including the code picker's own search box, since focus moves there)
+  // so it doesn't fight with typing "a"/"c" as literal characters.
+  useEffect(() => {
+    if (elementId === null || !detail) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      const key = event.key.toLowerCase();
+      if (key !== "a" && key !== "c") return;
+
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) {
+        return;
+      }
+
+      // Without this, the same keypress that opens the code picker can leak
+      // into its auto-focused search input (its autoFocus can land within the
+      // same event's dispatch, so the browser's own default text-insertion
+      // for this keydown fires against the now-focused input) - seen for
+      // real: pressing "c" opened the picker with a literal "c" already
+      // typed into the search box.
+      event.preventDefault();
+
+      if (key === "a") {
+        handleApprove();
+      } else {
+        setCodePickerOpen(true);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [elementId, detail, handleApprove]);
 
   return (
     <Sheet open={elementId !== null} onOpenChange={onOpenChange}>
@@ -226,6 +294,58 @@ export function ElementDetailSheet({
 
               <Separator />
 
+              <Section title="Review">
+                <Input
+                  placeholder="Comment (optional)"
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={
+                      !detail.classification?.ibis_code ||
+                      reviewElement.isPending
+                    }
+                    onClick={handleApprove}
+                    title={
+                      !detail.classification?.ibis_code
+                        ? "Nothing to approve - this element has no suggested code yet"
+                        : undefined
+                    }
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reviewElement.isPending}
+                    onClick={() => setCodePickerOpen(true)}
+                  >
+                    Correct...
+                  </Button>
+                </div>
+                {reviewElement.isError && (
+                  <p className="text-sm text-red-600" role="alert">
+                    Couldn&apos;t save - please try again.
+                  </p>
+                )}
+                {reviewElement.isSuccess && (
+                  <p className="text-sm text-green-700 dark:text-green-500">
+                    Saved.
+                  </p>
+                )}
+              </Section>
+
+              <CodePickerDialog
+                open={codePickerOpen}
+                onOpenChange={setCodePickerOpen}
+                candidates={detail.candidates}
+                onSelect={handleCorrect}
+              />
+
+              <Separator />
+
               <Section title="Candidate codes">
                 {detail.candidates.length > 0 ? (
                   <ul className="space-y-1 text-sm">
@@ -286,10 +406,18 @@ export function ElementDetailSheet({
               <Separator />
 
               <Section title="Review history">
+                {undoReview.isError && (
+                  <p className="text-sm text-red-600" role="alert">
+                    Couldn&apos;t undo - please try again.
+                  </p>
+                )}
                 {detail.reviews.length > 0 ? (
                   <ul className="space-y-1 text-sm">
-                    {detail.reviews.map((review, index) => (
-                      <li key={index} className="rounded-md border px-2 py-1">
+                    {detail.reviews.map((review) => (
+                      <li
+                        key={review.id}
+                        className="rounded-md border px-2 py-1"
+                      >
                         <div className="flex items-center justify-between">
                           <Badge variant="outline">{review.action}</Badge>
                           <span className="text-muted-foreground text-xs">
@@ -301,6 +429,18 @@ export function ElementDetailSheet({
                             {review.comment}
                           </p>
                         )}
+                        {review.id === mostRecentReview?.id &&
+                          review.action !== "undo" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="mt-1"
+                              disabled={undoReview.isPending}
+                              onClick={() => undoReview.mutate(review.id)}
+                            >
+                              Undo
+                            </Button>
+                          )}
                       </li>
                     ))}
                   </ul>

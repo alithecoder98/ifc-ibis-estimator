@@ -41,6 +41,7 @@ class CandidateDetail:
 
 @dataclass
 class ReviewDetail:
+    id: int
     action: str
     comment: str | None
     created_at: datetime
@@ -104,6 +105,7 @@ def get_element_detail(
         )
         reviews = [
             ReviewDetail(
+                id=review.id,
                 action=review.action,
                 comment=review.comment,
                 created_at=review.created_at,

@@ -319,6 +319,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/projects/{project_id}/elements/{element_id}/reviews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Review Element
+     * @description Phase 6.1 - approve the current suggestion or correct it to a different
+     *     code. Writes a fresh Classification row (never mutates the old one - see
+     *     app/ai/reviews.py) plus a Review row logging the action.
+     */
+    post: operations["review_element_projects__project_id__elements__element_id__reviews_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{project_id}/groups/{group_hash}/reviews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Review Group
+     * @description Phase 6.1 bulk action - same approve/correct body applied to every
+     *     element sharing this group_hash in the project (the same grouping concept
+     *     jev/LLM/rules already batch by - see app/ai/classify.py).
+     */
+    post: operations["review_group_projects__project_id__groups__group_hash__reviews_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{project_id}/reviews/{review_id}/undo": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Undo Review Action
+     * @description Phase 6.1 - restores the classification to what it was before the given
+     *     review (its `before` snapshot), as a fresh Classification row, plus a new
+     *     Review row (action="undo") logging the undo. Nothing is deleted.
+     */
+    post: operations["undo_review_action_projects__project_id__reviews__review_id__undo_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/codes/import": {
     parameters: {
       query?: never;
@@ -713,8 +779,27 @@ export interface components {
       /** Source */
       source: string;
     };
+    /** ReviewActionOut */
+    ReviewActionOut: {
+      classification: components["schemas"]["ClassificationDetailOut"];
+      review: components["schemas"]["ReviewOut"];
+    };
+    /** ReviewCreate */
+    ReviewCreate: {
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: "approve" | "correct";
+      /** Ibis Code */
+      ibis_code?: string | null;
+      /** Comment */
+      comment?: string | null;
+    };
     /** ReviewOut */
     ReviewOut: {
+      /** Id */
+      id: number;
       /** Action */
       action: string;
       /** Comment */
@@ -1413,6 +1498,116 @@ export interface operations {
           "application/json": {
             [key: string]: unknown;
           };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  review_element_projects__project_id__elements__element_id__reviews_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        element_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReviewCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReviewActionOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  review_group_projects__project_id__groups__group_hash__reviews_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        group_hash: string;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReviewCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReviewActionOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  undo_review_action_projects__project_id__reviews__review_id__undo_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        review_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReviewActionOut"];
         };
       };
       /** @description Validation Error */

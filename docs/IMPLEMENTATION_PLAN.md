@@ -798,8 +798,65 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
       Done when (phase): largest reference model loads < 20 s; any row found in 3D in one click.
 
 ## Phase 6 — Review and learning loop (weeks 7–8.5)
-- [ ] **6.1 Review API + UI** — approve, correct (searchable code picker with suggestions),
+- [x] **6.1 Review API + UI** — approve, correct (searchable code picker with suggestions),
       bulk approve/correct per group, undo, comments.
+      ✅ 2026-10-15 — No new `Classification.status` value: approve/correct both
+      write a fresh Classification row (`status="auto_accepted", source="review"`
+      - same append-only "latest wins" convention as every other engine in
+      `classify.py`), never mutate the old one. The AI-vs-human distinction
+      stays derivable by cross-referencing `reviews`, exactly how 4.3's
+      `corrected` stat already worked (that stat is no longer an honest zero -
+      see its own test). New `app/ai/reviews.py`
+      (`approve_element`/`correct_element`/`undo_review`) +
+      `POST /projects/{id}/elements/{id}/reviews`,
+      `POST /projects/{id}/groups/{group_hash}/reviews` (bulk, same grouping
+      concept jev/LLM/rules already batch by), `POST /projects/{id}/reviews/
+      {id}/undo`. Bulk is all-or-nothing by design (one bad element fails the
+      whole batch, nothing partially applied) - confirmed live this is a real
+      UX tradeoff, not just a theoretical one (see below). Frontend: a
+      candidates-first searchable code picker
+      (`code-picker-dialog.tsx`, reusing the element's own 4.5 candidates
+      before falling back to 3.1's semantic search), Approve/Correct/Undo
+      wired into the element detail sheet, bulk Approve/Correct group buttons
+      on grouped table rows. Also finishes 4.7's deferred pieces: `A`
+      approves, `C` opens the code picker, both scoped to the open detail
+      sheet. 10 new backend tests, 206/206 total (run twice, no leaks),
+      `tsc`/`eslint`/Prettier/a real `pnpm build` all clean.
+      **Verified live in a real browser against the real running stack**
+      (Playwright, carried over from the tooling set up earlier this session) -
+      not just curl: opened a real element, picked a real correction from real
+      ranked candidates (0.610 cosine similarity, correctly the top match),
+      watched the classification update live, undid it, tried a bulk approve
+      on a mixed group and saw the real all-or-nothing failure message.
+      **Two real bugs found only by this live run, neither catchable by curl
+      or pytest alone, both fixed and now regression-tested:** (1) `undo`
+      originally refused to restore a prior state that had no code at all
+      (jev's stub result) - but that's the *normal* starting state for most
+      elements in this pipeline today, not an edge case, so refusing it was
+      wrong; fixed to restore the exact `before` snapshot including status,
+      not force `auto_accepted`. (2) The same keypress that opens the `C`
+      code-picker dialog could leak into its freshly auto-focused search
+      input (seen for real: pressing "c" opened the picker with a literal "c"
+      already typed in) - fixed with `event.preventDefault()` in both the
+      `A`/`C` and `J`/`K` handlers. **Also hit, unrelated to 6.1's own code:**
+      port 8000 had stray ghost listeners again (same unresolved class as
+      4.6's note) - worked around by moving to port 8002 for this session's
+      verification, consistent with the standing CLAUDE.md guidance to try a
+      different port rather than chase it further; and a test
+      (`test_summary_corrected_count_reflects_a_real_correction`) that assumed
+      a literal `"21.10"` ibis_code didn't exist yet collided with real rows
+      an earlier live-verification session had left in the same database
+      pytest uses - fixed by using a guaranteed-unique code instead of a
+      plausible-looking literal, a lesson worth generalizing to any future
+      test in this project that picks a "safe-looking" literal value.
+      **Not done: a real, committed Playwright E2E test.** No Playwright setup
+      exists in this repo at all yet (not even the npm dependency) - this
+      sub-phase's live verification used a throwaway Playwright install in a
+      scratch directory, not a permanent project asset. PROMPTS.md's 4.7 spec
+      calls for a committed test (`login → upload → open results → approve
+      one item`); setting that up for real (dependency, config, CI wiring) is
+      separate, unplanned scope flagged for a decision rather than added
+      silently. 4.7's box stays partial until that's resolved.
 - [ ] **6.2 Composite split** — suggest one line per material layer with layer quantities; user confirms.
 - [ ] **6.3 Example memory write-back** — every approve/correct stored with embedding; used by 3.3.
       Done when: correction on project A changes suggestion for same element type on project B (test).

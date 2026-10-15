@@ -19,7 +19,8 @@ from app.ai.element_detail import get_element_detail
 from app.ai.elements import ElementRow, list_element_rows
 from app.ai.embedder import get_embedder
 from app.ai.export import build_export_csv
-from app.ai.summary import compute_summary
+from app.ai.reviews import ReviewError, approve_element, correct_element, undo_review
+from app.ai.summary import compute_summary, latest_classifications_by_element
 from app.core.deps import require_role
 from app.db.models import (
     Classification,
@@ -28,6 +29,7 @@ from app.db.models import (
     Job,
     Project,
     Quantity,
+    Review,
     User,
 )
 from app.db.session import get_db
@@ -39,6 +41,9 @@ from app.schemas import (
     ProjectOut,
     ProjectSummaryOut,
     ProjectUpdate,
+    ReviewActionOut,
+    ReviewCreate,
+    ReviewOut,
 )
 from app.storage import download_bytes, upload_fileobj
 from app.workers.classification import reclassify_ifc_file
@@ -432,3 +437,150 @@ def classify_file(
     get_queue().enqueue(reclassify_ifc_file, job.id, file_id)
 
     return {"id": job.id}
+
+
+def _get_project_element(
+    db: Session, project_id: int, element_id: int
+) -> Element | None:
+    element = db.get(Element, element_id)
+    if element is None:
+        return None
+    ifc_file = db.get(IfcFile, element.ifc_file_id)
+    if ifc_file is None or ifc_file.project_id != project_id:
+        return None
+    return element
+
+
+def _apply_review(
+    db: Session, element: Element, body: ReviewCreate, user: User
+) -> ReviewActionOut:
+    current = latest_classifications_by_element(db, [element.id]).get(element.id)
+    try:
+        if body.action == "approve":
+            result = approve_element(db, element, current, user, body.comment)
+        else:
+            if body.ibis_code is None:
+                raise ReviewError("ibis_code is required for a correction")
+            result = correct_element(
+                db, element, current, body.ibis_code, user, body.comment
+            )
+    except ReviewError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    # Review has no user_email column (and no ORM relationships exist anywhere
+    # in this codebase to derive one) - every action here is the authenticated
+    # user's own, so their already-loaded email is used directly rather than a
+    # second query.
+    return ReviewActionOut(
+        classification=result.classification,
+        review=ReviewOut(
+            id=result.review.id,
+            action=result.review.action,
+            comment=result.review.comment,
+            created_at=result.review.created_at,
+            user_email=user.email,
+        ),
+    )
+
+
+@router.post(
+    "/{project_id}/elements/{element_id}/reviews",
+    response_model=ReviewActionOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def review_element(
+    project_id: int,
+    element_id: int,
+    body: ReviewCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator")),
+) -> ReviewActionOut:
+    """Phase 6.1 - approve the current suggestion or correct it to a different
+    code. Writes a fresh Classification row (never mutates the old one - see
+    app/ai/reviews.py) plus a Review row logging the action.
+    """
+    element = _get_project_element(db, project_id, element_id)
+    if element is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="element not found"
+        )
+    result = _apply_review(db, element, body, user)
+    db.commit()
+    return result
+
+
+@router.post(
+    "/{project_id}/groups/{group_hash}/reviews",
+    response_model=list[ReviewActionOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def review_group(
+    project_id: int,
+    group_hash: str,
+    body: ReviewCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator")),
+) -> list[ReviewActionOut]:
+    """Phase 6.1 bulk action - same approve/correct body applied to every
+    element sharing this group_hash in the project (the same grouping concept
+    jev/LLM/rules already batch by - see app/ai/classify.py).
+    """
+    elements = (
+        db.query(Element)
+        .join(IfcFile, IfcFile.id == Element.ifc_file_id)
+        .filter(IfcFile.project_id == project_id, Element.group_hash == group_hash)
+        .all()
+    )
+    if not elements:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="group not found"
+        )
+
+    results = [_apply_review(db, element, body, user) for element in elements]
+    db.commit()
+    return results
+
+
+@router.post("/{project_id}/reviews/{review_id}/undo", response_model=ReviewActionOut)
+def undo_review_action(
+    project_id: int,
+    review_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator")),
+) -> ReviewActionOut:
+    """Phase 6.1 - restores the classification to what it was before the given
+    review (its `before` snapshot), as a fresh Classification row, plus a new
+    Review row (action="undo") logging the undo. Nothing is deleted.
+    """
+    review = db.get(Review, review_id)
+    classification = (
+        db.get(Classification, review.classification_id) if review is not None else None
+    )
+    element = (
+        _get_project_element(db, project_id, classification.element_id)
+        if classification is not None
+        else None
+    )
+    if review is None or element is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="review not found"
+        )
+
+    try:
+        result = undo_review(db, review, element, user)
+    except ReviewError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    db.commit()
+    return ReviewActionOut(
+        classification=result.classification,
+        review=ReviewOut(
+            id=result.review.id,
+            action=result.review.action,
+            comment=result.review.comment,
+            created_at=result.review.created_at,
+            user_email=user.email,
+        ),
+    )

@@ -722,6 +722,173 @@
         }
       }
     },
+    "/projects/{project_id}/elements/{element_id}/reviews": {
+      "post": {
+        "tags": ["projects"],
+        "summary": "Review Element",
+        "description": "Phase 6.1 - approve the current suggestion or correct it to a different\ncode. Writes a fresh Classification row (never mutates the old one - see\napp/ai/reviews.py) plus a Review row logging the action.",
+        "operationId": "review_element_projects__project_id__elements__element_id__reviews_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "element_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Element Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReviewCreate" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReviewActionOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/groups/{group_hash}/reviews": {
+      "post": {
+        "tags": ["projects"],
+        "summary": "Review Group",
+        "description": "Phase 6.1 bulk action - same approve/correct body applied to every\nelement sharing this group_hash in the project (the same grouping concept\njev/LLM/rules already batch by - see app/ai/classify.py).",
+        "operationId": "review_group_projects__project_id__groups__group_hash__reviews_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "group_hash",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Group Hash" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReviewCreate" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ReviewActionOut" },
+                  "title": "Response Review Group Projects  Project Id  Groups  Group Hash  Reviews Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/reviews/{review_id}/undo": {
+      "post": {
+        "tags": ["projects"],
+        "summary": "Undo Review Action",
+        "description": "Phase 6.1 - restores the classification to what it was before the given\nreview (its `before` snapshot), as a fresh Classification row, plus a new\nReview row (action=\"undo\") logging the undo. Nothing is deleted.",
+        "operationId": "undo_review_action_projects__project_id__reviews__review_id__undo_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Review Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReviewActionOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/codes/import": {
       "post": {
         "tags": ["codes"],
@@ -1688,8 +1855,40 @@
         "required": ["quantity_type", "value", "unit", "source"],
         "title": "QuantityOut"
       },
+      "ReviewActionOut": {
+        "properties": {
+          "classification": {
+            "$ref": "#/components/schemas/ClassificationDetailOut"
+          },
+          "review": { "$ref": "#/components/schemas/ReviewOut" }
+        },
+        "type": "object",
+        "required": ["classification", "review"],
+        "title": "ReviewActionOut"
+      },
+      "ReviewCreate": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["approve", "correct"],
+            "title": "Action"
+          },
+          "ibis_code": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Ibis Code"
+          },
+          "comment": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": ["action"],
+        "title": "ReviewCreate"
+      },
       "ReviewOut": {
         "properties": {
+          "id": { "type": "integer", "title": "Id" },
           "action": { "type": "string", "title": "Action" },
           "comment": {
             "anyOf": [{ "type": "string" }, { "type": "null" }],
@@ -1703,7 +1902,7 @@
           "user_email": { "type": "string", "title": "User Email" }
         },
         "type": "object",
-        "required": ["action", "comment", "created_at", "user_email"],
+        "required": ["id", "action", "comment", "created_at", "user_email"],
         "title": "ReviewOut"
       },
       "RuleCondition": {

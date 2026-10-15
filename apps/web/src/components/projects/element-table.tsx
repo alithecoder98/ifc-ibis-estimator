@@ -33,9 +33,11 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/error-state";
+import { CodePickerDialog } from "@/components/projects/code-picker-dialog";
 import { ElementDetailSheet } from "@/components/projects/element-detail-sheet";
 import { statusBadge } from "@/lib/projects/status-badge";
 import { useProjectElements } from "@/lib/projects/use-project-elements";
+import { useReviewGroup } from "@/lib/reviews/use-review-group";
 import type { components } from "@/lib/api/schema";
 
 type ElementRow = components["schemas"]["ElementRowOut"];
@@ -133,6 +135,10 @@ export function ElementTable({ projectId }: { projectId: number }) {
   const [selectedElementId, setSelectedElementId] = useState<number | null>(
     null,
   );
+  const [bulkCorrectGroupHash, setBulkCorrectGroupHash] = useState<
+    string | null
+  >(null);
+  const reviewGroup = useReviewGroup(projectId);
 
   // A fresh [] on every render (when elements is still undefined) would
   // defeat every useMemo below it, which all depend on this reference.
@@ -243,6 +249,7 @@ export function ElementTable({ projectId }: { projectId: number }) {
         return;
       }
       if (leafRows.length === 0) return;
+      event.preventDefault();
 
       const currentIndex = leafRows.findIndex(
         (row) => row.original.id === selectedElementId,
@@ -443,17 +450,42 @@ export function ElementTable({ projectId }: { projectId: number }) {
                     }}
                   >
                     {row.getIsGrouped() ? (
-                      <button
-                        onClick={row.getToggleExpandedHandler()}
-                        className="flex min-w-32 flex-1 items-center gap-1 px-2 font-medium"
-                      >
-                        {row.getIsExpanded() ? (
-                          <ChevronDown className="size-4" />
-                        ) : (
-                          <ChevronRight className="size-4" />
-                        )}
-                        Group of {row.subRows.length} element(s)
-                      </button>
+                      <div className="flex min-w-32 flex-1 items-center gap-2 px-2">
+                        <button
+                          onClick={row.getToggleExpandedHandler()}
+                          className="flex flex-1 items-center gap-1 font-medium"
+                        >
+                          {row.getIsExpanded() ? (
+                            <ChevronDown className="size-4" />
+                          ) : (
+                            <ChevronRight className="size-4" />
+                          )}
+                          Group of {row.subRows.length} element(s)
+                        </button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={reviewGroup.isPending}
+                          onClick={() =>
+                            reviewGroup.mutate({
+                              groupHash: String(row.groupingValue),
+                              body: { action: "approve" },
+                            })
+                          }
+                        >
+                          Approve group
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={reviewGroup.isPending}
+                          onClick={() =>
+                            setBulkCorrectGroupHash(String(row.groupingValue))
+                          }
+                        >
+                          Correct group...
+                        </Button>
+                      </div>
                     ) : (
                       <button
                         type="button"
@@ -480,6 +512,26 @@ export function ElementTable({ projectId }: { projectId: number }) {
           </div>
         )}
       </div>
+
+      {reviewGroup.isError && (
+        <ErrorState message="Couldn't apply that to the whole group - no elements in it were changed." />
+      )}
+
+      <CodePickerDialog
+        open={bulkCorrectGroupHash !== null}
+        onOpenChange={(open) => {
+          if (!open) setBulkCorrectGroupHash(null);
+        }}
+        candidates={[]}
+        onSelect={(code) => {
+          if (bulkCorrectGroupHash === null) return;
+          reviewGroup.mutate({
+            groupHash: bulkCorrectGroupHash,
+            body: { action: "correct", ibis_code: code.ibis_code },
+          });
+          setBulkCorrectGroupHash(null);
+        }}
+      />
 
       <ElementDetailSheet
         projectId={projectId}

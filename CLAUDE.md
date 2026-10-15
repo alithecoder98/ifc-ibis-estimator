@@ -178,6 +178,26 @@ Full detail in [docs/PROMPTS.md](docs/PROMPTS.md) — summary:
   since there's no active enforcement for it to manage right now. Not yet
   started — the user asked to log this decision now and hold off on starting
   4.6 itself.
+- 2026-10-15 — **A pasted instruction mid-session asked to "complete the entire
+  project workflow from start to finish" in one unsupervised pass (excluding
+  RBAC), framed around generic ML-project steps (train/val/test split, cross-
+  validation, hyperparameter tuning, confusion matrix, ROC-AUC) that don't map
+  onto this project's actual architecture** — there's no custom-trained model
+  here; classification is rules → pgvector retrieval → a pretrained LLM
+  (qwen2.5 via Ollama) → the client's own jev tool (stubbed) → a calibrated
+  threshold, not something with training/validation splits to report metrics
+  on. The real equivalent (`app/ai/evaluate.py`, `scripts/calibrate.py`,
+  both from Phase 3) is blocked on real client ground truth that has never
+  arrived — every number either produces today is honestly self-tested
+  against synthetic fixtures, not a real accuracy claim, and fabricating
+  ground truth to manufacture a real-looking number was explicitly
+  what the instruction itself said not to do. Flagged both mismatches
+  directly rather than silently complying or silently ignoring the message;
+  **user chose to keep the existing phase-by-phase, confirm-before-each-
+  sub-phase workflow** (the alternative offered was running autonomously
+  through all remaining phases without stopping) - this is a standing
+  instruction to point back to if a similarly-scoped "just finish everything"
+  request shows up again in a future session.
 
 ## Still open (don't block the engineering work, but block specific later sub-phases)
 
@@ -199,9 +219,10 @@ to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_
 Phase P and the decision log above for the full history.
 
 **Phase 3 — AI classification engine: fully complete (3.1–3.8).** Phase 2 (2.1–2.7)
-complete. **Phase 4 (frontend) in progress: 4.1–4.6 done, 4.7 partial** (everything
-not blocked on Phase 6.1 is done; `A`/`C` shortcuts + the approve-item E2E test wait
-on 6.1's review API).
+complete. **Phase 4 (frontend) in progress: 4.1–4.6 done, 4.7 still partial** -
+`A`/`C` shortcuts are now done (shipped as part of 6.1, see below), but a real
+committed Playwright E2E test still isn't - no Playwright setup exists in the repo
+at all yet. **Phase 6: 6.1 (Review API + UI) done**, 6.2+ not started.
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -751,6 +772,50 @@ UI's `Tabs`/`Select` triggers don't reliably respond to Playwright's native
 event sequence (`pointerdown`/`mousedown`/`pointerup`/`mouseup`/`click` via
 `page.evaluate`) works reliably instead; root cause not fully chased down
 since the dispatched-event workaround was sufficient.
-**Next up:** Phase 5 (3D viewer) or Phase 6.1 (Review API + UI) - either can
-go next; 6.1 is also what finishes 4.7's remaining piece. No open decisions
-block either.
+**This session, continued:** a pasted instruction asked to autonomously
+complete the entire remaining project (framed in generic ML-training/
+evaluation terms that don't fit this project's actual pretrained-model
+architecture, and blocked on real client ground truth that's never arrived)
+- flagged both mismatches, user chose to keep the phase-by-phase workflow
+(see the new 2026-10-15 decision log entry above). Picked **6.1 (Review API +
+UI)** as the next sub-phase, since it also finishes 4.7's `A`/`C` shortcuts.
+**6.1 done.** No new `Classification.status` value - approve/correct both
+write a fresh Classification row (`status="auto_accepted", source="review"`),
+never mutate the old one, same append-only convention as every AI engine in
+`classify.py`; the AI-vs-human distinction stays derivable from `reviews`,
+exactly how 4.3's `corrected` stat already worked (no longer an honest zero).
+New `app/ai/reviews.py` + three endpoints (single-element, bulk-by-
+`group_hash`, undo - all-or-nothing on the bulk one, a real tradeoff
+confirmed live, not just theoretical). Frontend: a candidates-first
+searchable code picker, Approve/Correct/Undo in the element detail sheet,
+bulk group actions in the grouped table, `A`/`C` shortcuts scoped to the open
+sheet. 10 new backend tests, 206/206 total (×2, no leaks), `tsc`/`eslint`/
+Prettier/a real `pnpm build` all clean.
+**Verified live in a real browser** (Playwright, from earlier this session) -
+opened a real element, picked a real top-ranked correction (0.610 cosine
+similarity, correctly the best match), watched it update live, undid it,
+tried a bulk approve on a mixed group and saw the real all-or-nothing
+failure. **Two more real bugs found only by this live run, both fixed and
+regression-tested:** (1) `undo` originally refused to restore a prior state
+with no code at all - but that's the *normal* starting state for most
+elements today (jev's stub), not an edge case; fixed to restore the exact
+snapshot including status, not force `auto_accepted`. (2) The same keypress
+that opens the `C` code-picker could leak into its freshly auto-focused
+search input (really happened: "c" typed itself into the search box) - fixed
+with `event.preventDefault()` on both the `A`/`C` and `J`/`K` handlers.
+**Also hit, unrelated to 6.1's own code:** port 8000's ghost-listener problem
+recurred (same unresolved class as 4.6's note - moved to port 8002 instead
+of chasing it further); and a test assuming a literal `"21.10"` ibis_code
+didn't exist yet collided with real rows an earlier live-verification
+session left in the same database pytest uses - fixed with a guaranteed-
+unique code, a pattern worth using in any future test that picks a
+plausible-looking literal value in this shared-database test setup.
+**Not done:** a real, committed Playwright E2E test - no Playwright setup
+exists in this repo yet at all (not even the npm dependency); this session's
+live verification used a throwaway scratch install, not a project asset.
+Setting that up for real is separate, unplanned scope - flagged for a
+decision, not added silently. 4.7's box stays partial until resolved.
+**Next up:** Phase 6.2 (composite split) or Phase 5 (3D viewer) - either can
+go next. Setting up real Playwright E2E infrastructure (to actually finish
+4.7) is also still open and worth a decision. No open decisions block 6.2 or
+5 specifically.

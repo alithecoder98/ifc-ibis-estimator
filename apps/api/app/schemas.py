@@ -56,6 +56,7 @@ class SimilarExampleOut(BaseModel):
 class ReviewOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    id: int
     action: str
     comment: str | None
     created_at: datetime
@@ -95,6 +96,19 @@ class ElementDetailOut(BaseModel):
     candidates: list[CandidateOut]
     similar_examples: list[SimilarExampleOut]
     reviews: list[ReviewOut]
+
+
+class ReviewCreate(BaseModel):
+    action: Literal["approve", "correct"]
+    # Required for "correct", ignored for "approve" (which carries over the
+    # element's current suggested code - see app/ai/reviews.py).
+    ibis_code: str | None = None
+    comment: str | None = None
+
+
+class ReviewActionOut(BaseModel):
+    classification: ClassificationDetailOut
+    review: ReviewOut
 
 
 class JobOut(BaseModel):
