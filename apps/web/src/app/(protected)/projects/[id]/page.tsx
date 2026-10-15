@@ -6,7 +6,9 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ErrorState } from "@/components/shared/error-state";
 import { ElementTable } from "@/components/projects/element-table";
 import { ExportButton } from "@/components/projects/export-button";
 import { ProjectDialog } from "@/components/projects/project-dialog";
@@ -20,16 +22,24 @@ export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>();
   const projectId = Number(params.id);
 
-  const { data: project, isLoading, isError } = useProject(projectId);
+  const { data: project, isLoading, isError, refetch } = useProject(projectId);
   const { data: files } = useProjectFiles(projectId);
   const [editOpen, setEditOpen] = useState(false);
 
-  if (isLoading) return <p className="text-muted-foreground">Loading...</p>;
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
   if (isError || !project) {
     return (
-      <p className="text-sm text-red-600" role="alert">
-        Couldn&apos;t load this project.
-      </p>
+      <ErrorState
+        message="Couldn't load this project."
+        onRetry={() => refetch()}
+      />
     );
   }
 

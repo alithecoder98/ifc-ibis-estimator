@@ -199,7 +199,9 @@ to keep building ahead of one, not a sign one came in. See `docs/IMPLEMENTATION_
 Phase P and the decision log above for the full history.
 
 **Phase 3 — AI classification engine: fully complete (3.1–3.8).** Phase 2 (2.1–2.7)
-complete. **Phase 4 (frontend) in progress: 4.1–4.6 done.**
+complete. **Phase 4 (frontend) in progress: 4.1–4.6 done, 4.7 partial** (everything
+not blocked on Phase 6.1 is done; `A`/`C` shortcuts + the approve-item E2E test wait
+on 6.1's review API).
 **Phase 1:** done except 1.7's staging-deploy step (deliberately skipped — no hosting
 target chosen; CI + Dockerfiles are done and verified, see git history for sub-phase
 1.7).
@@ -664,5 +666,39 @@ suspect a stale/ghost listener on that exact port before suspecting your own
 code, and try a different port as a cheap diagnostic** before spending more
 time on it. Root cause still unknown — flagging as a standing risk, not a
 solved one.
-**Next up:** Phase 4.7 — UX polish (keyboard shortcuts, loading/empty/error
-states, a Playwright E2E test). No open decisions block it.
+**This session (2026-10-15):** 4.7 (UX polish) done except what's blocked on
+6.1 — the user flagged up front that 4.7 as written needs approve/correct
+actions that don't exist until Phase 6.1 (its "done when" explicitly requires
+a Playwright test that approves one item, and `A`/`C` need something to act
+on), so agreed to do everything else now and defer the rest. Shipped: `J`/`K`
+keyboard navigation in the element table (moves to the next/previous row in
+whatever order is currently on screen, opens that row's detail panel, ignored
+while typing in a filter/dialog field); a new `Skeleton` component (shadcn, no
+new npm dependency) replacing every plain "Loading..." text app-wide with a
+content-shaped placeholder; a new shared `components/shared/error-state.tsx`
+(message + a real **Retry** button wired to the query's own `refetch()`)
+replacing every bare error paragraph that previously had no recovery path
+short of a full page reload; the one real missing empty state found
+(`element-table.tsx` showed a blank table with no message for zero elements
+or zero filter matches, now split into two distinct messages, matching the
+pattern the projects list already used elsewhere). No backend changes, no new
+dependencies besides the one shadcn component. `tsc`/`eslint`/Prettier/a real
+`pnpm build` all clean; 196/196 backend pytest re-run as a sanity check only
+(no backend code touched this sub-phase).
+**Not done, deliberately:** `A`/`C` shortcuts and the approve-item Playwright
+E2E test - both wait on Phase 6.1's review API. `docs/IMPLEMENTATION_PLAN.md`'s
+4.7 box stays unchecked until then.
+**A mundane process-hygiene variant worth remembering generally, hit right at
+the start of this sub-phase:** this was a fresh session on a new day, and
+Docker Desktop simply wasn't running - `pytest` hung silently past its normal
+~25s for over two minutes (SQLAlchemy retrying a connection to a
+nonexistent Postgres) before being stopped and diagnosed, not because of
+anything in this sub-phase's own code. **In any fresh session, check
+`docker compose ps` (or just try `docker info`) before assuming a hung
+backend command is a code problem** - this is a different failure shape
+than every earlier "stray worker" process-hygiene note (nothing stray here,
+just nothing running at all), so it's documented as its own case, not folded
+into that one.
+**Next up:** Phase 5 (3D viewer) or Phase 6.1 (Review API + UI) - either can
+go next; 6.1 is also what finishes 4.7's remaining piece. No open decisions
+block either.

@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { useLogout } from "@/lib/auth/use-logout";
 
@@ -33,8 +34,13 @@ export default function ProtectedLayout({
 
   if (isLoading || !user) {
     return (
-      <div className="text-muted-foreground flex min-h-screen items-center justify-center">
-        Loading...
+      <div className="flex min-h-screen">
+        <aside className="w-56 shrink-0 border-r p-4">
+          <Skeleton className="h-8 w-32" />
+        </aside>
+        <div className="flex-1 p-6">
+          <Skeleton className="h-8 w-48" />
+        </div>
       </div>
     );
   }

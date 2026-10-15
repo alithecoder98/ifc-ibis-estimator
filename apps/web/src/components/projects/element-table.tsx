@@ -13,7 +13,7 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/error-state";
 import { ElementDetailSheet } from "@/components/projects/element-detail-sheet";
 import { statusBadge } from "@/lib/projects/status-badge";
 import { useProjectElements } from "@/lib/projects/use-project-elements";
@@ -111,7 +113,12 @@ const columns: ColumnDef<ElementRow>[] = [
 const DEFAULT_VISIBILITY: VisibilityState = { group_hash: false };
 
 export function ElementTable({ projectId }: { projectId: number }) {
-  const { data: elements, isLoading, isError } = useProjectElements(projectId);
+  const {
+    data: elements,
+    isLoading,
+    isError,
+    refetch,
+  } = useProjectElements(projectId);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(ALL);
@@ -196,6 +203,12 @@ export function ElementTable({ projectId }: { projectId: number }) {
   });
 
   const { rows: tableRows } = table.getRowModel();
+  // Group header rows have nothing to open a detail panel for - J/K navigation
+  // (and the row-click handler below) only ever care about the leaf rows.
+  const leafRows = useMemo(
+    () => tableRows.filter((row) => !row.getIsGrouped()),
+    [tableRows],
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -205,14 +218,58 @@ export function ElementTable({ projectId }: { projectId: number }) {
     overscan: 10,
   });
 
+  // J/K move to the next/previous row in whatever order is currently on
+  // screen (respecting sort/filter/group) and open that row's detail panel -
+  // works whether the panel is already open or not. Ignored while typing in
+  // a filter/search field or a dialog form so it doesn't fight with "j"/"k"
+  // as literal characters.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const key = event.key.toLowerCase();
+      if (key !== "j" && key !== "k") return;
+
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) {
+        return;
+      }
+      if (leafRows.length === 0) return;
+
+      const currentIndex = leafRows.findIndex(
+        (row) => row.original.id === selectedElementId,
+      );
+      const nextIndex =
+        key === "j"
+          ? Math.min(currentIndex + 1, leafRows.length - 1)
+          : Math.max(currentIndex - 1, 0);
+      const nextRow = leafRows[nextIndex];
+      setSelectedElementId(nextRow.original.id);
+
+      const indexInTableRows = tableRows.findIndex((r) => r.id === nextRow.id);
+      if (indexInTableRows >= 0) {
+        virtualizer.scrollToIndex(indexInTableRows);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [leafRows, tableRows, selectedElementId, virtualizer]);
+
   if (isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading...</p>;
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-9 w-full max-w-2xl" />
+        <div className="space-y-1 rounded-lg border p-2">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
+      </div>
+    );
   }
   if (isError) {
     return (
-      <p className="text-sm text-red-600" role="alert">
-        Couldn&apos;t load elements.
-      </p>
+      <ErrorState message="Couldn't load elements." onRetry={() => refetch()} />
     );
   }
 
@@ -351,60 +408,68 @@ export function ElementTable({ projectId }: { projectId: number }) {
           ))}
         </div>
 
-        <div ref={scrollRef} className="h-[600px] overflow-auto">
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              position: "relative",
-            }}
-          >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const row = tableRows[virtualRow.index];
-              return (
-                <div
-                  key={row.id}
-                  className="absolute flex w-full items-center border-b text-sm"
-                  style={{
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                >
-                  {row.getIsGrouped() ? (
-                    <button
-                      onClick={row.getToggleExpandedHandler()}
-                      className="flex min-w-32 flex-1 items-center gap-1 px-2 font-medium"
-                    >
-                      {row.getIsExpanded() ? (
-                        <ChevronDown className="size-4" />
-                      ) : (
-                        <ChevronRight className="size-4" />
-                      )}
-                      Group of {row.subRows.length} element(s)
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedElementId(row.original.id)}
-                      className="hover:bg-muted flex h-full w-full items-center text-left"
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <div
-                          key={cell.id}
-                          className="min-w-32 flex-1 truncate px-2"
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </div>
-                      ))}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+        {tableRows.length === 0 ? (
+          <p className="text-muted-foreground p-6 text-center text-sm">
+            {rows.length === 0
+              ? "No elements yet."
+              : "No elements match your filters."}
+          </p>
+        ) : (
+          <div ref={scrollRef} className="h-[600px] overflow-auto">
+            <div
+              style={{
+                height: `${virtualizer.getTotalSize()}px`,
+                position: "relative",
+              }}
+            >
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const row = tableRows[virtualRow.index];
+                return (
+                  <div
+                    key={row.id}
+                    className="absolute flex w-full items-center border-b text-sm"
+                    style={{
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    {row.getIsGrouped() ? (
+                      <button
+                        onClick={row.getToggleExpandedHandler()}
+                        className="flex min-w-32 flex-1 items-center gap-1 px-2 font-medium"
+                      >
+                        {row.getIsExpanded() ? (
+                          <ChevronDown className="size-4" />
+                        ) : (
+                          <ChevronRight className="size-4" />
+                        )}
+                        Group of {row.subRows.length} element(s)
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedElementId(row.original.id)}
+                        className="hover:bg-muted flex h-full w-full items-center text-left"
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <div
+                            key={cell.id}
+                            className="min-w-32 flex-1 truncate px-2"
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </div>
+                        ))}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <ElementDetailSheet

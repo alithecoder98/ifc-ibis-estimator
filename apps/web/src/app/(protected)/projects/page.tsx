@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/error-state";
 import { ProjectDialog } from "@/components/projects/project-dialog";
 import { statusBadge } from "@/lib/projects/status-badge";
 import { useProjects } from "@/lib/projects/use-projects";
 
 export default function ProjectsPage() {
-  const { data: projects, isLoading, isError } = useProjects();
+  const { data: projects, isLoading, isError, refetch } = useProjects();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -34,11 +36,18 @@ export default function ProjectsPage() {
         className="max-w-sm"
       />
 
-      {isLoading && <p className="text-muted-foreground">Loading...</p>}
+      {isLoading && (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
+        </div>
+      )}
       {isError && (
-        <p className="text-sm text-red-600" role="alert">
-          Couldn&apos;t load projects. Try refreshing the page.
-        </p>
+        <ErrorState
+          message="Couldn't load projects."
+          onRetry={() => refetch()}
+        />
       )}
 
       {!isLoading && !isError && filtered.length === 0 && (

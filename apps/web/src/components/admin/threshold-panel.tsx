@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/error-state";
 import { useThreshold } from "@/lib/admin/use-threshold";
 import { useUpdateThreshold } from "@/lib/admin/use-update-threshold";
 
 export function ThresholdPanel() {
-  const { data, isLoading, isError } = useThreshold();
+  const { data, isLoading, isError, refetch } = useThreshold();
   const update = useUpdateThreshold();
   const [value, setValue] = useState("");
 
@@ -28,13 +30,14 @@ export function ThresholdPanel() {
   }
 
   if (isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading...</p>;
+    return <Skeleton className="h-40 w-full max-w-sm rounded-xl" />;
   }
   if (isError) {
     return (
-      <p className="text-sm text-red-600" role="alert">
-        Couldn&apos;t load the threshold.
-      </p>
+      <ErrorState
+        message="Couldn't load the threshold."
+        onRetry={() => refetch()}
+      />
     );
   }
 

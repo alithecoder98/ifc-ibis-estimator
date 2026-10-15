@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -20,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ErrorState } from "@/components/shared/error-state";
 import { RuleDialog } from "@/components/admin/rule-dialog";
 import { useDeleteRule } from "@/lib/admin/use-delete-rule";
 import { useRules } from "@/lib/admin/use-rules";
@@ -50,7 +52,7 @@ export function RulesPanel() {
 
   const status =
     statusFilter === ALL ? null : (statusFilter as "suggested" | "active");
-  const { data: rules, isLoading, isError } = useRules(status);
+  const { data: rules, isLoading, isError, refetch } = useRules(status);
   const updateRule = useUpdateRule();
   const deleteRule = useDeleteRule();
 
@@ -90,11 +92,15 @@ export function RulesPanel() {
         <Button onClick={openCreate}>New rule</Button>
       </div>
 
-      {isLoading && <p className="text-muted-foreground text-sm">Loading...</p>}
+      {isLoading && (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      )}
       {isError && (
-        <p className="text-sm text-red-600" role="alert">
-          Couldn&apos;t load rules.
-        </p>
+        <ErrorState message="Couldn't load rules." onRetry={() => refetch()} />
       )}
       {!isLoading && !isError && (
         <Card>

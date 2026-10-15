@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/error-state";
 import { statusBadge } from "@/lib/projects/status-badge";
 import { useElementDetail } from "@/lib/projects/use-element-detail";
 
@@ -40,6 +42,7 @@ export function ElementDetailSheet({
     data: detail,
     isLoading,
     isError,
+    refetch,
   } = useElementDetail(projectId, elementId);
 
   return (
@@ -57,12 +60,17 @@ export function ElementDetailSheet({
 
         <div className="space-y-5 px-4 pb-4">
           {isLoading && (
-            <p className="text-muted-foreground text-sm">Loading...</p>
+            <div className="space-y-3">
+              <Skeleton className="h-24 w-full rounded-md" />
+              <Skeleton className="h-24 w-full rounded-md" />
+              <Skeleton className="h-24 w-full rounded-md" />
+            </div>
           )}
           {isError && (
-            <p className="text-sm text-red-600" role="alert">
-              Couldn&apos;t load this element.
-            </p>
+            <ErrorState
+              message="Couldn't load this element."
+              onRetry={() => refetch()}
+            />
           )}
 
           {detail && (

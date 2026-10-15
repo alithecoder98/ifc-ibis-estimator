@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -9,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ErrorState } from "@/components/shared/error-state";
 import { useProjectSummary } from "@/lib/projects/use-project-summary";
 
 function StatCard({ label, value }: { label: string; value: number }) {
@@ -23,16 +25,28 @@ function StatCard({ label, value }: { label: string; value: number }) {
 }
 
 export function ResultsOverview({ projectId }: { projectId: number }) {
-  const { data: summary, isLoading, isError } = useProjectSummary(projectId);
+  const {
+    data: summary,
+    isLoading,
+    isError,
+    refetch,
+  } = useProjectSummary(projectId);
 
   if (isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading...</p>;
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-20 w-full rounded-xl" />
+        ))}
+      </div>
+    );
   }
   if (isError || !summary) {
     return (
-      <p className="text-sm text-red-600" role="alert">
-        Couldn&apos;t load the project summary.
-      </p>
+      <ErrorState
+        message="Couldn't load the project summary."
+        onRetry={() => refetch()}
+      />
     );
   }
 

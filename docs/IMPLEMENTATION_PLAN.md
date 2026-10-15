@@ -740,6 +740,38 @@ Human work (client calls, wireframes) happens in parallel; Claude builds the too
 - [ ] **4.7 UX polish** — keyboard shortcuts (A approve, C correct, J/K next/prev), empty/loading/error
       states, consistent design.
       Done when (phase): Playwright test covers login → upload → open results → approve one item.
+      ⏸️ 2026-10-15 — Everything that doesn't depend on Phase 6.1 is done: `J`/`K`
+      keyboard navigation in the element table (moves to the next/previous row
+      in whatever order is currently on screen - respecting sort/filter/group -
+      and opens that row's detail panel; ignored while typing in a filter field
+      or dialog form); a new `Skeleton` component (shadcn, no new npm
+      dependency) replacing every plain "Loading..." text across the app with
+      a content-shaped placeholder; a new shared `ErrorState` (message + a real
+      **Retry** button wired to the query's own `refetch()`) replacing every
+      bare error paragraph that previously had no way to recover without a
+      full page reload; the one real missing empty state found
+      (`element-table.tsx` showed a blank table with no message for zero
+      elements or zero filter matches - now distinguishes "No elements yet."
+      from "No elements match your filters.", the same pattern the projects
+      list already used). No backend changes, no new dependencies besides the
+      one new shadcn component. `tsc --noEmit`/`eslint`/Prettier all clean, a
+      real `pnpm build` clean, 196/196 backend pytest (sanity check only - no
+      backend code changed this sub-phase). **Not done, deliberately:** the
+      `A` (approve) / `C` (correct) shortcuts and the "approve one item"
+      Playwright E2E test both need Phase 6.1's review API, which doesn't
+      exist yet - box stays unchecked until 6.1 ships, then this sub-phase
+      finishes in one more small pass. **A real, if mundane, process-hygiene
+      variant hit at the very start of this sub-phase, worth remembering
+      generally:** this was a fresh session on a new day, and Docker Desktop
+      simply wasn't running at all - `pytest` hung silently for over two
+      minutes instead of failing fast, because SQLAlchemy was retrying a
+      connection to a Postgres that didn't exist yet, not because of anything
+      in this sub-phase's own code. Worth checking `docker compose ps` first
+      in any fresh session before assuming a hung backend command is a code
+      problem. Same honest gap as every prior frontend sub-phase: no browser
+      tool available, so `J`/`K` and the new skeleton/empty/retry states were
+      confirmed to compile and render without a server error, but never
+      visually or interactively click-tested.
 
 ## Phase 5 — 3D viewer (weeks 6.5–8)
 - [ ] **5.1 Viewer component** — load fragments, camera controls, fit, storey filter, clipping, isolate.

@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -20,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ErrorState } from "@/components/shared/error-state";
 import { useCodes } from "@/lib/admin/use-codes";
 import { useImportCodes } from "@/lib/admin/use-import-codes";
 import { useSearchCodes } from "@/lib/admin/use-search-codes";
@@ -44,6 +46,7 @@ export function CodeListPanel() {
   const rows = (isSearching ? searchResult.data : browse.data) ?? [];
   const isLoading = isSearching ? searchResult.isLoading : browse.isLoading;
   const isError = isSearching ? searchResult.isError : browse.isError;
+  const refetch = isSearching ? searchResult.refetch : browse.refetch;
 
   const families = useMemo(
     () =>
@@ -133,11 +136,18 @@ export function CodeListPanel() {
         </span>
       </div>
 
-      {isLoading && <p className="text-muted-foreground text-sm">Loading...</p>}
+      {isLoading && (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      )}
       {isError && (
-        <p className="text-sm text-red-600" role="alert">
-          Couldn&apos;t load code list.
-        </p>
+        <ErrorState
+          message="Couldn't load code list."
+          onRetry={() => refetch()}
+        />
       )}
       {!isLoading && !isError && (
         <Card>
