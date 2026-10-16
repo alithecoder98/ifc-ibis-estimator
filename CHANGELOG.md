@@ -9,13 +9,26 @@ All notable changes to this project are documented here. Format loosely follows
 
 - **Admin > LLM Connectivity** — since this repo is now published without the author's
   own local Ollama instance, every clone/deployment needs to connect its own. This new
-  admin tab shows the currently active Ollama host and model names (previously only
+  admin tab shows the currently active connection and model names (previously only
   visible/settable via `apps/api/.env`), lets you change them, and includes a "Test
-  connection" action that checks the host is reachable and both models are actually
-  pulled there before you save. DB-backed (same `app_settings` table the auto-accept
-  threshold already uses) — a change applies to the very next embedding/classification
-  call, no restart required. Ollama only for now, not a multi-provider credential
-  manager — see README's Known limitations.
+  connection" action that checks the host is reachable and the configured models are
+  actually available there before you save. DB-backed (same `app_settings` table the
+  auto-accept threshold already uses) — a change applies to the very next embedding/
+  classification call, no restart required.
+- **OpenAI-compatible provider support** — a second connection type alongside Ollama,
+  covering any provider speaking the OpenAI chat-completions/embeddings API shape
+  (OpenAI itself, OpenRouter, Groq, Together, or a local server like LM Studio/vLLM).
+  New `OpenAICompatibleLLMClient`/`OpenAICompatibleEmbedder`. API keys are never echoed
+  back over the API once saved (`has_api_key: true/false` only); leaving the field blank
+  on a later save preserves the key already set rather than wiping it. Switching
+  providers in the UI resets the other fields to that provider's own defaults instead of
+  silently carrying over the previous provider's values under a misleading label - a
+  real bug caught live before merge (switching to OpenAI-compatible kept showing the
+  Ollama host/model values verbatim). All embeddings (regardless of provider) are now
+  validated against this database's fixed 1024-dim pgvector column and fail loudly, not
+  silently, on a mismatch - see README's Known limitations for what that means for
+  OpenAI's own embedding models specifically (and for Anthropic, which isn't covered by
+  either provider type).
 
 ## [0.1.0] — Initial repository preparation
 

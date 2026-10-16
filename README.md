@@ -183,12 +183,30 @@ Copy each app's `.env.example` and fill in the real values. **Never commit a `.e
 This repo is published without the author's local Ollama instance, so a fresh clone (or
 anyone else's deployment of it) needs to point at its own. The `OLLAMA_*` env vars above
 only set the *startup default* — the real, day-to-day way to configure this is
-**Admin > LLM Connectivity** in the running app: it shows the currently active Ollama
-host and the two model names (embeddings + classification), lets you change them, and has
-a **Test connection** button that checks the host is reachable and both models are
-actually pulled there before you save. A change takes effect on the very next
-embedding/classification call — no restart. This currently supports Ollama only (not
-hosted providers like OpenAI/Anthropic); see [Known limitations](#known-limitations--outstanding-deployment-requirements).
+**Admin > LLM Connectivity** in the running app. Two provider types are supported:
+
+- **Ollama (local)** — a self-hosted instance, no API key. Enter its base URL and the
+  two model names (embeddings + classification).
+- **OpenAI-compatible API** — any provider speaking the OpenAI chat-completions/
+  embeddings API shape: OpenAI itself, OpenRouter, Groq, Together, or a local server like
+  LM Studio/vLLM that mimics it. Enter the API base URL, an API key, and the two model
+  names. The API key is never echoed back by the API once saved (`GET /settings/llm`
+  returns `has_api_key: true/false`, never the key itself) — leaving the field blank on a
+  later save keeps the key you already set.
+
+Switching providers resets the base URL/model fields to that provider's typical defaults
+(so you don't accidentally save, say, an Ollama URL mislabeled as an OpenAI-compatible
+connection) — switching back to whichever provider is currently saved restores its real
+values instead. A **Test connection** button checks the candidate connection is reachable
+(and, for Ollama, that both models are actually pulled) before you save. A change takes
+effect on the very next embedding/classification call — no restart.
+
+**The embedding model's output dimension must be 1024** to match this database's fixed
+pgvector column (`bge-m3`'s native size) — a mismatched model (e.g. OpenAI's
+`text-embedding-3-large`, 3072 dims) fails loudly on the next embedding call rather than
+silently corrupting data, but there's no automatic resizing; `text-embedding-3-small` can
+be configured to output 1024 dims via OpenAI's `dimensions` parameter, which this
+integration does not yet expose — see [Known limitations](#known-limitations--outstanding-deployment-requirements).
 
 ## Required data files
 
@@ -315,9 +333,22 @@ Dockerfile's Next.js standalone server does the same automatically.
   [Deploying on Render](#deploying-on-render-with-docker) above) — both need an external
   provider or a different architecture decision before a hosted deployment can actually
   run the full AI pipeline.
-- **Admin > LLM Connectivity only supports Ollama.** It lets you point at a different
-  Ollama host/models, not switch to a hosted provider (OpenAI/Anthropic/etc.) — that
-  would need new `Embedder`/`LLMClient` implementations, not just a settings UI.
+- **Admin > LLM Connectivity supports Ollama and OpenAI-compatible APIs, not
+  Anthropic specifically.** Anthropic's API doesn't follow the OpenAI chat-completions
+  shape and has no embeddings endpoint at all, so it would need its own adapter and
+  could only ever serve classification, never embeddings.
+- **OpenAI-compatible structured output relies on plain JSON mode, not schema-
+  constrained generation.** Ollama's `format` parameter enforces the exact response
+  shape during generation; the OpenAI-compatible path only requests
+  `response_format: {"type": "json_object"}` (closer to universally supported across
+  that ecosystem than the stricter `json_schema` mode, which is patchy on smaller/local
+  servers) and leans on the existing retry-on-bad-JSON logic plus a more explicit prompt
+  for a model that still gets the shape wrong.
+- **No `dimensions` parameter support for OpenAI's own embedding models.** Their
+  native output (1536/3072 dims) doesn't match this database's fixed 1024-dim pgvector
+  column; OpenAI's API can shorten `text-embedding-3-*` output via a `dimensions`
+  parameter, but this integration doesn't send one yet — pick a model with 1024-dim
+  native output (e.g. `bge-m3`, if your OpenAI-compatible provider serves it) instead.
 - **Auth bypass exists for local dev only** (`AUTH_DISABLED`) — guarded to refuse startup
   outside `ENVIRONMENT=development`, but worth knowing it's in the codebase.
 - **No staging environment has existed yet** — every "verified live" claim in this

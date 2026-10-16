@@ -16,9 +16,14 @@ classification.
 # Estimating rules
 {rules_text}
 
-Respond with the ibis_code of the best-matching candidate, copied exactly as written
-above, or the literal string "NONE" if none of the candidates are a reasonable match.
-self_score must be between 0 and 1 and reflect your real confidence, not the
-candidate's similarity rank. flags should list anything worth an estimator's
-attention (for example: missing_quantity, proxy_element, ambiguous_material,
-composite_needs_split) - an empty list if nothing applies.
+Respond with a JSON object with exactly these fields:
+- ibis_code: the best-matching candidate's code, copied exactly as written above, or
+  the literal string "NONE" if none of the candidates are a reasonable match.
+- internal_element: the matched candidate's internal element name (empty string if
+  ibis_code is "NONE").
+- reasoning: a short explanation of why you chose this match (or why none fit).
+- self_score: a number between 0 and 1 reflecting your real confidence, not the
+  candidate's similarity rank.
+- flags: a list of anything worth an estimator's attention (for example:
+  missing_quantity, proxy_element, ambiguous_material, composite_needs_split) - an
+  empty list if nothing applies.

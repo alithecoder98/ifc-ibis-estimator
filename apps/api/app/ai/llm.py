@@ -17,7 +17,7 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
-from app.core.settings_store import get_ollama_connection
+from app.core.settings_store import get_llm_connection
 from app.db.models import CodeList, ExampleMemory
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,12 @@ class LLMResult:
     flags: list[str] = field(default_factory=list)
     prompt_tokens: int = 0
     completion_tokens: int = 0
-    # Local/open-source model (Phase 3.1 decision) - always 0, not a placeholder.
+    # True zero for Ollama (local, no per-call cost). For a paid OpenAI-compatible
+    # provider this is NOT a real cost figure - per-token pricing varies by vendor
+    # and model and changes over time, so this deliberately doesn't guess at one
+    # rather than show a number that could be wrong. prompt_tokens/completion_tokens
+    # above are the real, verifiable signal; multiply by your provider's published
+    # rate if you need an actual cost.
     cost_usd: float = 0.0
 
 
@@ -113,9 +118,65 @@ class OllamaLLMClient:
         )
 
 
-def get_llm_client(db: Session) -> OllamaLLMClient:
+class OpenAICompatibleLLMClient:
+    """Any provider speaking the OpenAI chat-completions API shape: OpenAI itself,
+    OpenRouter, Groq, Together, or a local server like LM Studio/vLLM that mimics it.
+
+    Uses response_format={"type": "json_object"} rather than the stricter
+    json_schema/structured-outputs mode Ollama supports - schema-constrained
+    generation isn't universally supported across this ecosystem (patchy on
+    smaller/local servers especially), while plain JSON mode is close to
+    universal. classify_v1.txt's prompt now spells out every field by name for
+    exactly this reason (it used to lean on Ollama's schema to fill in fields it
+    never named), and classify_with_llm()'s existing retry-on-bad-JSON loop
+    covers a model that still gets the shape wrong.
+    """
+
+    def __init__(self, base_url: str, model: str, api_key: str):
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.api_key = api_key
+
+    def chat(self, prompt: str) -> tuple[dict, int, int]:
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        response = httpx.post(
+            f"{self.base_url}/chat/completions",
+            json={
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+            },
+            headers=headers,
+            # Same reasoning as OllamaLLMClient's 480s - a classification pass
+            # makes many back-to-back calls within one job's larger timeout
+            # budget (app/routers/projects.py), so a single call needs real
+            # headroom without eating the whole job's budget alone.
+            timeout=480.0,
+        )
+        if response.is_error:
+            raise httpx.HTTPStatusError(
+                f"Chat completion request failed: {response.status_code} - "
+                f"{response.text[:500]}",
+                request=response.request,
+                response=response,
+            )
+        body = response.json()
+        parsed = json.loads(body["choices"][0]["message"]["content"])
+        usage = body.get("usage", {})
+        return (
+            parsed,
+            usage.get("prompt_tokens", 0),
+            usage.get("completion_tokens", 0),
+        )
+
+
+def get_llm_client(db: Session) -> OllamaLLMClient | OpenAICompatibleLLMClient:
     # DB-backed - see app/ai/embedder.py's get_embedder() for why.
-    connection = get_ollama_connection(db)
+    connection = get_llm_connection(db)
+    if connection.provider == "openai_compatible":
+        return OpenAICompatibleLLMClient(
+            connection.base_url, connection.llm_model, connection.api_key
+        )
     return OllamaLLMClient(connection.base_url, connection.llm_model)
 
 

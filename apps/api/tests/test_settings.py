@@ -24,11 +24,11 @@ from app.core.config import get_settings
 from app.core.constants import EMBEDDING_DIM
 from app.core.security import create_access_token
 from app.core.settings_store import (
-    OllamaConnection,
+    LLMConnection,
     get_auto_accept_threshold,
-    get_ollama_connection,
+    get_llm_connection,
     set_auto_accept_threshold,
-    set_ollama_connection,
+    set_llm_connection,
 )
 from app.db.models import (
     AppSetting,
@@ -42,6 +42,8 @@ from app.db.models import (
 )
 from app.db.models.settings import (
     AUTO_ACCEPT_THRESHOLD_KEY,
+    LLM_API_KEY_KEY,
+    LLM_PROVIDER_KEY,
     OLLAMA_BASE_URL_KEY,
     OLLAMA_EMBEDDING_MODEL_KEY,
     OLLAMA_LLM_MODEL_KEY,
@@ -57,7 +59,13 @@ def _clear_llm_override() -> None:
     db = SessionLocal()
     db.query(AppSetting).filter(
         AppSetting.key.in_(
-            [OLLAMA_BASE_URL_KEY, OLLAMA_EMBEDDING_MODEL_KEY, OLLAMA_LLM_MODEL_KEY]
+            [
+                LLM_PROVIDER_KEY,
+                OLLAMA_BASE_URL_KEY,
+                OLLAMA_EMBEDDING_MODEL_KEY,
+                OLLAMA_LLM_MODEL_KEY,
+                LLM_API_KEY_KEY,
+            ]
         )
     ).delete(synchronize_session=False)
     db.commit()
@@ -309,31 +317,35 @@ def test_update_threshold_requires_admin() -> None:
         db.close()
 
 
-def test_get_ollama_connection_falls_back_to_settings_default() -> None:
+def test_get_llm_connection_falls_back_to_settings_default() -> None:
     db = SessionLocal()
     try:
         _clear_llm_override()
         defaults = get_settings()
-        connection = get_ollama_connection(db)
+        connection = get_llm_connection(db)
+        assert connection.provider == "ollama"
         assert connection.base_url == defaults.ollama_base_url
         assert connection.embedding_model == defaults.ollama_embedding_model
         assert connection.llm_model == defaults.ollama_llm_model
+        assert connection.api_key == ""
     finally:
         db.close()
 
 
-def test_set_and_get_ollama_connection_persists() -> None:
+def test_set_and_get_llm_connection_persists() -> None:
     db = SessionLocal()
     try:
-        set_ollama_connection(
+        set_llm_connection(
             db,
-            OllamaConnection(
+            LLMConnection(
+                provider="ollama",
                 base_url="http://my-ollama-host:11434",
                 embedding_model="my-embed-model",
                 llm_model="my-llm-model",
             ),
+            update_api_key=False,
         )
-        connection = get_ollama_connection(db)
+        connection = get_llm_connection(db)
         assert connection.base_url == "http://my-ollama-host:11434"
         assert connection.embedding_model == "my-embed-model"
         assert connection.llm_model == "my-llm-model"
@@ -341,9 +353,67 @@ def test_set_and_get_ollama_connection_persists() -> None:
         # A fresh session must see it too, same reasoning as the threshold test.
         db2 = SessionLocal()
         try:
-            assert get_ollama_connection(db2).base_url == "http://my-ollama-host:11434"
+            assert get_llm_connection(db2).base_url == "http://my-ollama-host:11434"
         finally:
             db2.close()
+    finally:
+        _clear_llm_override()
+        db.close()
+
+
+def test_set_llm_connection_openai_compatible_persists_api_key() -> None:
+    db = SessionLocal()
+    try:
+        set_llm_connection(
+            db,
+            LLMConnection(
+                provider="openai_compatible",
+                base_url="https://api.openai.com/v1",
+                embedding_model="text-embedding-3-small",
+                llm_model="gpt-4o-mini",
+                api_key="sk-test-key-123",
+            ),
+            update_api_key=True,
+        )
+        connection = get_llm_connection(db)
+        assert connection.provider == "openai_compatible"
+        assert connection.api_key == "sk-test-key-123"
+    finally:
+        _clear_llm_override()
+        db.close()
+
+
+def test_set_llm_connection_preserves_api_key_when_update_api_key_false() -> None:
+    db = SessionLocal()
+    try:
+        set_llm_connection(
+            db,
+            LLMConnection(
+                provider="openai_compatible",
+                base_url="https://api.openai.com/v1",
+                embedding_model="text-embedding-3-small",
+                llm_model="gpt-4o-mini",
+                api_key="sk-original-key",
+            ),
+            update_api_key=True,
+        )
+        # Changing just the model name, with no api_key resubmitted, must not
+        # wipe the key already saved - the frontend never has the real value
+        # to resend (LLMConnectivityOut never echoes it back).
+        set_llm_connection(
+            db,
+            LLMConnection(
+                provider="openai_compatible",
+                base_url="https://api.openai.com/v1",
+                embedding_model="text-embedding-3-small",
+                llm_model="gpt-4o",
+                api_key="",
+            ),
+            update_api_key=False,
+        )
+        connection = get_llm_connection(db)
+        assert connection.llm_model == "gpt-4o"
+        assert connection.api_key == "sk-original-key"
     finally:
         _clear_llm_override()
         db.close()
@@ -355,9 +425,11 @@ def test_get_llm_connectivity_endpoint(admin_client: TestClient) -> None:
         assert response.status_code == 200
         defaults = get_settings()
         assert response.json() == {
+            "provider": "ollama",
             "base_url": defaults.ollama_base_url,
             "embedding_model": defaults.ollama_embedding_model,
             "llm_model": defaults.ollama_llm_model,
+            "has_api_key": False,
         }
     finally:
         _clear_llm_override()
@@ -368,6 +440,7 @@ def test_update_llm_connectivity_endpoint(admin_client: TestClient) -> None:
         response = admin_client.patch(
             "/settings/llm",
             json={
+                "provider": "ollama",
                 "base_url": "http://other-host:11434",
                 "embedding_model": "embed-v2",
                 "llm_model": "llm-v2",
@@ -375,13 +448,74 @@ def test_update_llm_connectivity_endpoint(admin_client: TestClient) -> None:
         )
         assert response.status_code == 200
         assert response.json() == {
+            "provider": "ollama",
             "base_url": "http://other-host:11434",
             "embedding_model": "embed-v2",
             "llm_model": "llm-v2",
+            "has_api_key": False,
         }
 
         get_response = admin_client.get("/settings/llm")
         assert get_response.json()["base_url"] == "http://other-host:11434"
+    finally:
+        _clear_llm_override()
+
+
+def test_update_llm_connectivity_endpoint_sets_api_key_without_echoing_it(
+    admin_client: TestClient,
+) -> None:
+    try:
+        response = admin_client.patch(
+            "/settings/llm",
+            json={
+                "provider": "openai_compatible",
+                "base_url": "https://api.openai.com/v1",
+                "embedding_model": "text-embedding-3-small",
+                "llm_model": "gpt-4o-mini",
+                "api_key": "sk-super-secret",
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["has_api_key"] is True
+        assert "api_key" not in body
+        assert "sk-super-secret" not in response.text
+    finally:
+        _clear_llm_override()
+
+
+def test_update_llm_connectivity_endpoint_omitted_api_key_preserves_existing(
+    admin_client: TestClient,
+) -> None:
+    try:
+        admin_client.patch(
+            "/settings/llm",
+            json={
+                "provider": "openai_compatible",
+                "base_url": "https://api.openai.com/v1",
+                "embedding_model": "text-embedding-3-small",
+                "llm_model": "gpt-4o-mini",
+                "api_key": "sk-original",
+            },
+        )
+        # api_key omitted entirely this time - only changing the model.
+        response = admin_client.patch(
+            "/settings/llm",
+            json={
+                "provider": "openai_compatible",
+                "base_url": "https://api.openai.com/v1",
+                "embedding_model": "text-embedding-3-small",
+                "llm_model": "gpt-4o",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["has_api_key"] is True
+
+        db = SessionLocal()
+        try:
+            assert get_llm_connection(db).api_key == "sk-original"
+        finally:
+            db.close()
     finally:
         _clear_llm_override()
 
@@ -405,6 +539,7 @@ def test_update_llm_connectivity_requires_admin() -> None:
         response = client.patch(
             "/settings/llm",
             json={
+                "provider": "ollama",
                 "base_url": "http://x:11434",
                 "embedding_model": "x",
                 "llm_model": "x",
@@ -431,13 +566,30 @@ class _FakeTagsResponse:
         return {"models": [{"name": name} for name in self._models]}
 
 
-def test_llm_connectivity_test_endpoint_reports_success(
+class _FakeModelsResponse:
+    def __init__(self, model_ids: list[str], status_code: int = 200):
+        self._model_ids = model_ids
+        self.status_code = status_code
+
+    @property
+    def is_error(self) -> bool:
+        return self.status_code >= 400
+
+    def json(self) -> dict:
+        return {"data": [{"id": mid} for mid in self._model_ids]}
+
+    @property
+    def text(self) -> str:
+        return ""
+
+
+def test_llm_connectivity_test_endpoint_ollama_reports_success(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import app.ai.ollama_connectivity as ollama_test_module
+    import app.ai.connectivity_check as connectivity_module
 
     monkeypatch.setattr(
-        ollama_test_module.httpx,
+        connectivity_module.httpx,
         "get",
         lambda url, timeout: _FakeTagsResponse(
             ["bge-m3:latest", "qwen2.5:7b-instruct"]
@@ -446,6 +598,7 @@ def test_llm_connectivity_test_endpoint_reports_success(
     response = admin_client.post(
         "/settings/llm/test",
         json={
+            "provider": "ollama",
             "base_url": "http://some-host:11434",
             "embedding_model": "bge-m3",
             "llm_model": "qwen2.5:7b-instruct",
@@ -457,19 +610,20 @@ def test_llm_connectivity_test_endpoint_reports_success(
     assert "bge-m3:latest" in body["available_models"]
 
 
-def test_llm_connectivity_test_endpoint_reports_missing_models(
+def test_llm_connectivity_test_endpoint_ollama_reports_missing_models(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import app.ai.ollama_connectivity as ollama_test_module
+    import app.ai.connectivity_check as connectivity_module
 
     monkeypatch.setattr(
-        ollama_test_module.httpx,
+        connectivity_module.httpx,
         "get",
         lambda url, timeout: _FakeTagsResponse(["some-other-model:latest"]),
     )
     response = admin_client.post(
         "/settings/llm/test",
         json={
+            "provider": "ollama",
             "base_url": "http://some-host:11434",
             "embedding_model": "bge-m3",
             "llm_model": "qwen2.5:7b-instruct",
@@ -481,18 +635,19 @@ def test_llm_connectivity_test_endpoint_reports_missing_models(
     assert "bge-m3" in body["message"]
 
 
-def test_llm_connectivity_test_endpoint_reports_unreachable_host(
+def test_llm_connectivity_test_endpoint_ollama_reports_unreachable_host(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import app.ai.ollama_connectivity as ollama_test_module
+    import app.ai.connectivity_check as connectivity_module
 
     def _raise(url, timeout):
         raise httpx.ConnectError("connection refused")
 
-    monkeypatch.setattr(ollama_test_module.httpx, "get", _raise)
+    monkeypatch.setattr(connectivity_module.httpx, "get", _raise)
     response = admin_client.post(
         "/settings/llm/test",
         json={
+            "provider": "ollama",
             "base_url": "http://unreachable-host:11434",
             "embedding_model": "bge-m3",
             "llm_model": "qwen2.5:7b-instruct",
@@ -502,3 +657,101 @@ def test_llm_connectivity_test_endpoint_reports_unreachable_host(
     body = response.json()
     assert body["ok"] is False
     assert "unreachable-host" in body["message"]
+
+
+def test_llm_connectivity_test_endpoint_openai_compatible_reports_success(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.ai.connectivity_check as connectivity_module
+
+    captured_headers = {}
+
+    def _fake_get(url, headers=None, timeout=None):
+        captured_headers.update(headers or {})
+        return _FakeModelsResponse(["text-embedding-3-small", "gpt-4o-mini"])
+
+    monkeypatch.setattr(connectivity_module.httpx, "get", _fake_get)
+    response = admin_client.post(
+        "/settings/llm/test",
+        json={
+            "provider": "openai_compatible",
+            "base_url": "https://api.openai.com/v1",
+            "embedding_model": "text-embedding-3-small",
+            "llm_model": "gpt-4o-mini",
+            "api_key": "sk-test",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert captured_headers.get("Authorization") == "Bearer sk-test"
+
+
+def test_llm_connectivity_test_endpoint_openai_compatible_reports_auth_failure(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.ai.connectivity_check as connectivity_module
+
+    monkeypatch.setattr(
+        connectivity_module.httpx,
+        "get",
+        lambda url, headers=None, timeout=None: _FakeModelsResponse(
+            [], status_code=401
+        ),
+    )
+    response = admin_client.post(
+        "/settings/llm/test",
+        json={
+            "provider": "openai_compatible",
+            "base_url": "https://api.openai.com/v1",
+            "embedding_model": "text-embedding-3-small",
+            "llm_model": "gpt-4o-mini",
+            "api_key": "sk-bad-key",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is False
+    assert "API key" in body["message"]
+
+
+def test_llm_connectivity_test_endpoint_falls_back_to_saved_api_key(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.ai.connectivity_check as connectivity_module
+
+    try:
+        admin_client.patch(
+            "/settings/llm",
+            json={
+                "provider": "openai_compatible",
+                "base_url": "https://api.openai.com/v1",
+                "embedding_model": "text-embedding-3-small",
+                "llm_model": "gpt-4o-mini",
+                "api_key": "sk-saved-key",
+            },
+        )
+
+        captured_headers = {}
+
+        def _fake_get(url, headers=None, timeout=None):
+            captured_headers.update(headers or {})
+            return _FakeModelsResponse(["text-embedding-3-small", "gpt-4o-mini"])
+
+        monkeypatch.setattr(connectivity_module.httpx, "get", _fake_get)
+        # api_key omitted - should fall back to what's already saved, same
+        # "leave it alone" convention as the save endpoint.
+        response = admin_client.post(
+            "/settings/llm/test",
+            json={
+                "provider": "openai_compatible",
+                "base_url": "https://api.openai.com/v1",
+                "embedding_model": "text-embedding-3-small",
+                "llm_model": "gpt-4o-mini",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
+        assert captured_headers.get("Authorization") == "Bearer sk-saved-key"
+    finally:
+        _clear_llm_override()

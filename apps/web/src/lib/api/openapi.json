@@ -2109,12 +2109,24 @@
       },
       "LLMConnectivityOut": {
         "properties": {
+          "provider": {
+            "type": "string",
+            "enum": ["ollama", "openai_compatible"],
+            "title": "Provider"
+          },
           "base_url": { "type": "string", "title": "Base Url" },
           "embedding_model": { "type": "string", "title": "Embedding Model" },
-          "llm_model": { "type": "string", "title": "Llm Model" }
+          "llm_model": { "type": "string", "title": "Llm Model" },
+          "has_api_key": { "type": "boolean", "title": "Has Api Key" }
         },
         "type": "object",
-        "required": ["base_url", "embedding_model", "llm_model"],
+        "required": [
+          "provider",
+          "base_url",
+          "embedding_model",
+          "llm_model",
+          "has_api_key"
+        ],
         "title": "LLMConnectivityOut"
       },
       "LLMConnectivityTestOut": {
@@ -2133,6 +2145,12 @@
       },
       "LLMConnectivityUpdate": {
         "properties": {
+          "provider": {
+            "type": "string",
+            "enum": ["ollama", "openai_compatible"],
+            "title": "Provider",
+            "default": "ollama"
+          },
           "base_url": { "type": "string", "minLength": 1, "title": "Base Url" },
           "embedding_model": {
             "type": "string",
@@ -2143,6 +2161,10 @@
             "type": "string",
             "minLength": 1,
             "title": "Llm Model"
+          },
+          "api_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Api Key"
           }
         },
         "type": "object",

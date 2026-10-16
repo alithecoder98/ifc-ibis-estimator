@@ -3,12 +3,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api/client";
+import type { components } from "@/lib/api/schema";
 
-export type LLMConnectivityInput = {
-  base_url: string;
-  embedding_model: string;
-  llm_model: string;
-};
+export type LLMConnectivityInput =
+  components["schemas"]["LLMConnectivityUpdate"];
 
 export function useUpdateLLMConnectivity() {
   const queryClient = useQueryClient();

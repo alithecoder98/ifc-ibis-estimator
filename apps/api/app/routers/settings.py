@@ -7,14 +7,17 @@ to take effect on the next classification run, not after a restart.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.ai.ollama_connectivity import test_ollama_connection
+from app.ai.connectivity_check import (
+    test_ollama_connection,
+    test_openai_compatible_connection,
+)
 from app.core.deps import require_role
 from app.core.settings_store import (
-    OllamaConnection,
+    LLMConnection,
     get_auto_accept_threshold,
-    get_ollama_connection,
+    get_llm_connection,
     set_auto_accept_threshold,
-    set_ollama_connection,
+    set_llm_connection,
 )
 from app.db.models import User
 from app.db.session import get_db
@@ -52,11 +55,13 @@ def get_llm_connectivity(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "estimator", "viewer")),
 ) -> LLMConnectivityOut:
-    connection = get_ollama_connection(db)
+    connection = get_llm_connection(db)
     return LLMConnectivityOut(
+        provider=connection.provider,
         base_url=connection.base_url,
         embedding_model=connection.embedding_model,
         llm_model=connection.llm_model,
+        has_api_key=bool(connection.api_key),
     )
 
 
@@ -66,26 +71,42 @@ def update_llm_connectivity(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin")),
 ) -> LLMConnectivityOut:
-    connection = set_ollama_connection(
+    connection = set_llm_connection(
         db,
-        OllamaConnection(
+        LLMConnection(
+            provider=body.provider,
             base_url=body.base_url,
             embedding_model=body.embedding_model,
             llm_model=body.llm_model,
+            api_key=body.api_key or "",
         ),
+        update_api_key=body.api_key is not None,
     )
     return LLMConnectivityOut(
+        provider=connection.provider,
         base_url=connection.base_url,
         embedding_model=connection.embedding_model,
         llm_model=connection.llm_model,
+        has_api_key=bool(connection.api_key),
     )
 
 
 @router.post("/llm/test", response_model=LLMConnectivityTestOut)
 def test_llm_connectivity(
     body: LLMConnectivityUpdate,
+    db: Session = Depends(get_db),
     user: User = Depends(require_role("admin")),
 ) -> LLMConnectivityTestOut:
     # Tests the submitted values directly, not whatever's already saved - lets an
-    # admin verify a candidate connection before committing to it.
+    # admin verify a candidate connection before committing to it. api_key=None
+    # (field left blank, e.g. just testing a model-name change) falls back to
+    # whatever's already saved, same "leave it alone" convention as the save
+    # endpoint, rather than forcing a re-paste of the key just to re-test.
+    if body.provider == "openai_compatible":
+        api_key = body.api_key
+        if api_key is None:
+            api_key = get_llm_connection(db).api_key
+        return test_openai_compatible_connection(
+            body.base_url, body.embedding_model, body.llm_model, api_key
+        )
     return test_ollama_connection(body.base_url, body.embedding_model, body.llm_model)

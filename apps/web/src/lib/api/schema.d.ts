@@ -866,12 +866,19 @@ export interface components {
     };
     /** LLMConnectivityOut */
     LLMConnectivityOut: {
+      /**
+       * Provider
+       * @enum {string}
+       */
+      provider: "ollama" | "openai_compatible";
       /** Base Url */
       base_url: string;
       /** Embedding Model */
       embedding_model: string;
       /** Llm Model */
       llm_model: string;
+      /** Has Api Key */
+      has_api_key: boolean;
     };
     /** LLMConnectivityTestOut */
     LLMConnectivityTestOut: {
@@ -884,12 +891,20 @@ export interface components {
     };
     /** LLMConnectivityUpdate */
     LLMConnectivityUpdate: {
+      /**
+       * Provider
+       * @default ollama
+       * @enum {string}
+       */
+      provider: "ollama" | "openai_compatible";
       /** Base Url */
       base_url: string;
       /** Embedding Model */
       embedding_model: string;
       /** Llm Model */
       llm_model: string;
+      /** Api Key */
+      api_key?: string | null;
     };
     /** LoginRequest */
     LoginRequest: {

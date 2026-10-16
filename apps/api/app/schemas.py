@@ -251,15 +251,24 @@ class ThresholdUpdate(BaseModel):
 
 
 class LLMConnectivityOut(BaseModel):
+    provider: Literal["ollama", "openai_compatible"]
     base_url: str
     embedding_model: str
     llm_model: str
+    # Never the real key - this repo has nowhere safer than a plaintext DB column
+    # for it today (see app/core/settings_store.py), so the one thing enforceable
+    # here is that it's never echoed back over the API once saved.
+    has_api_key: bool
 
 
 class LLMConnectivityUpdate(BaseModel):
+    provider: Literal["ollama", "openai_compatible"] = "ollama"
     base_url: str = Field(min_length=1)
     embedding_model: str = Field(min_length=1)
     llm_model: str = Field(min_length=1)
+    # None/omitted = leave whatever's already saved alone (the frontend never has
+    # the real value to resubmit, since LLMConnectivityOut never sends it back).
+    api_key: str | None = None
 
 
 class LLMConnectivityTestOut(BaseModel):
