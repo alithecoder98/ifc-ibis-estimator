@@ -114,7 +114,24 @@ const columns: ColumnDef<ElementRow>[] = [
 
 const DEFAULT_VISIBILITY: VisibilityState = { group_hash: false };
 
-export function ElementTable({ projectId }: { projectId: number }) {
+export function ElementTable({
+  projectId,
+  selectedElementId,
+  onSelectElement,
+  sheetOpen,
+  onSheetOpenChange,
+}: {
+  projectId: number;
+  // Lifted to the parent page (Phase 5.2) so the 3D tab can highlight
+  // whatever was last selected here, and vice versa - see viewer-3d.tsx.
+  // sheetOpen is lifted too (not just selectedElementId): clicking an
+  // element in 3D should actually open its detail panel on arrival at this
+  // tab, not just scroll to a highlighted row with nothing visibly open.
+  selectedElementId: number | null;
+  onSelectElement: (elementId: number | null) => void;
+  sheetOpen: boolean;
+  onSheetOpenChange: (open: boolean) => void;
+}) {
   const {
     data: elements,
     isLoading,
@@ -132,9 +149,6 @@ export function ElementTable({ projectId }: { projectId: number }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] =
     useState<VisibilityState>(DEFAULT_VISIBILITY);
-  const [selectedElementId, setSelectedElementId] = useState<number | null>(
-    null,
-  );
   const [bulkCorrectGroupHash, setBulkCorrectGroupHash] = useState<
     string | null
   >(null);
@@ -259,7 +273,8 @@ export function ElementTable({ projectId }: { projectId: number }) {
           ? Math.min(currentIndex + 1, leafRows.length - 1)
           : Math.max(currentIndex - 1, 0);
       const nextRow = leafRows[nextIndex];
-      setSelectedElementId(nextRow.original.id);
+      onSelectElement(nextRow.original.id);
+      onSheetOpenChange(true);
 
       const indexInTableRows = tableRows.findIndex((r) => r.id === nextRow.id);
       if (indexInTableRows >= 0) {
@@ -269,7 +284,14 @@ export function ElementTable({ projectId }: { projectId: number }) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [leafRows, tableRows, selectedElementId, virtualizer]);
+  }, [
+    leafRows,
+    tableRows,
+    selectedElementId,
+    virtualizer,
+    onSelectElement,
+    onSheetOpenChange,
+  ]);
 
   if (isLoading) {
     return (
@@ -290,7 +312,7 @@ export function ElementTable({ projectId }: { projectId: number }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Input
           placeholder="Search elements..."
@@ -304,7 +326,16 @@ export function ElementTable({ projectId }: { projectId: number }) {
           onValueChange={(value) => setStatusFilter(value ?? ALL)}
         >
           <SelectTrigger size="sm">
-            <SelectValue placeholder="Status" />
+            {/* Base UI's Select.Value shows the raw stored value unless given
+                a children render-prop - unlike Radix, it never looks up the
+                matching SelectItem's rendered label itself. Without this,
+                every Select here displayed the literal "__all__" sentinel
+                instead of "All statuses" - confirmed live. */}
+            <SelectValue placeholder="Status">
+              {(value: string) =>
+                value === ALL ? "All statuses" : statusBadge(value).label
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All statuses</SelectItem>
@@ -324,7 +355,9 @@ export function ElementTable({ projectId }: { projectId: number }) {
           onValueChange={(value) => setFamilyFilter(value ?? ALL)}
         >
           <SelectTrigger size="sm">
-            <SelectValue placeholder="Family" />
+            <SelectValue placeholder="Family">
+              {(value: string) => (value === ALL ? "All families" : value)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All families</SelectItem>
@@ -341,7 +374,9 @@ export function ElementTable({ projectId }: { projectId: number }) {
           onValueChange={(value) => setStoreyFilter(value ?? ALL)}
         >
           <SelectTrigger size="sm">
-            <SelectValue placeholder="Storey" />
+            <SelectValue placeholder="Storey">
+              {(value: string) => (value === ALL ? "All storeys" : value)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All storeys</SelectItem>
@@ -409,19 +444,43 @@ export function ElementTable({ projectId }: { projectId: number }) {
         </span>
       </div>
 
-      <div className="rounded-lg border">
-        <div className="bg-muted/50 flex border-b text-sm font-medium">
-          {table.getHeaderGroups()[0]?.headers.map((header) => (
-            <button
-              key={header.id}
-              onClick={header.column.getToggleSortingHandler()}
-              className="hover:bg-muted flex min-w-32 flex-1 items-center gap-1 px-2 py-2 text-left"
-            >
-              {flexRender(header.column.columnDef.header, header.getContext())}
-              {header.column.getIsSorted() === "asc" && "↑"}
-              {header.column.getIsSorted() === "desc" && "↓"}
-            </button>
-          ))}
+      <div
+        className="overflow-x-auto rounded-lg border"
+        role="grid"
+        aria-rowcount={tableRows.length + 1}
+        aria-colcount={table.getVisibleLeafColumns().length}
+      >
+        <div
+          className="bg-muted/50 flex border-b text-sm font-medium"
+          role="row"
+          aria-rowindex={1}
+        >
+          {table.getHeaderGroups()[0]?.headers.map((header, colIndex) => {
+            const sortDir = header.column.getIsSorted();
+            return (
+              <button
+                key={header.id}
+                role="columnheader"
+                aria-colindex={colIndex + 1}
+                aria-sort={
+                  sortDir === "asc"
+                    ? "ascending"
+                    : sortDir === "desc"
+                      ? "descending"
+                      : "none"
+                }
+                onClick={header.column.getToggleSortingHandler()}
+                className="hover:bg-muted flex min-w-32 flex-1 items-center gap-1 px-2 py-2 text-left"
+              >
+                {flexRender(
+                  header.column.columnDef.header,
+                  header.getContext(),
+                )}
+                {sortDir === "asc" && "↑"}
+                {sortDir === "desc" && "↓"}
+              </button>
+            );
+          })}
         </div>
 
         {tableRows.length === 0 ? (
@@ -431,7 +490,7 @@ export function ElementTable({ projectId }: { projectId: number }) {
               : "No elements match your filters."}
           </p>
         ) : (
-          <div ref={scrollRef} className="h-[600px] overflow-auto">
+          <div ref={scrollRef} className="h-[600px] overflow-y-auto">
             <div
               style={{
                 height: `${virtualizer.getTotalSize()}px`,
@@ -443,6 +502,8 @@ export function ElementTable({ projectId }: { projectId: number }) {
                 return (
                   <div
                     key={row.id}
+                    role="row"
+                    aria-rowindex={virtualRow.index + 2}
                     className="absolute flex w-full items-center border-b text-sm"
                     style={{
                       height: `${virtualRow.size}px`,
@@ -487,14 +548,34 @@ export function ElementTable({ projectId }: { projectId: number }) {
                         </Button>
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedElementId(row.original.id)}
-                        className="hover:bg-muted flex h-full w-full items-center text-left"
+                      // role="row" lives on the outer virtualized div above - a
+                      // <button> wrapping block-level cell <div>s isn't valid
+                      // interactive-content nesting, and screen readers need
+                      // role="gridcell" on the cells themselves, not a single
+                      // button swallowing the whole row's semantics. tabIndex +
+                      // onKeyDown gives the row the same keyboard activation a
+                      // button would, without the invalid nesting.
+                      <div
+                        tabIndex={0}
+                        onClick={() => {
+                          onSelectElement(row.original.id);
+                          onSheetOpenChange(true);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onSelectElement(row.original.id);
+                            onSheetOpenChange(true);
+                          }
+                        }}
+                        aria-label={`Open ${row.original.name ?? row.original.global_id}`}
+                        className="hover:bg-muted flex h-full w-full cursor-pointer items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
                       >
-                        {row.getVisibleCells().map((cell) => (
+                        {row.getVisibleCells().map((cell, colIndex) => (
                           <div
                             key={cell.id}
+                            role="gridcell"
+                            aria-colindex={colIndex + 1}
                             className="min-w-32 flex-1 truncate px-2"
                           >
                             {flexRender(
@@ -503,7 +584,7 @@ export function ElementTable({ projectId }: { projectId: number }) {
                             )}
                           </div>
                         ))}
-                      </button>
+                      </div>
                     )}
                   </div>
                 );
@@ -535,10 +616,8 @@ export function ElementTable({ projectId }: { projectId: number }) {
 
       <ElementDetailSheet
         projectId={projectId}
-        elementId={selectedElementId}
-        onOpenChange={(open) => {
-          if (!open) setSelectedElementId(null);
-        }}
+        elementId={sheetOpen ? selectedElementId : null}
+        onOpenChange={onSheetOpenChange}
       />
     </div>
   );

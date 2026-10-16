@@ -1,6 +1,7 @@
 "use client";
 
-import { type DragEvent, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { type DragEvent, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,12 +25,26 @@ export function UploadDropzone({ projectId }: { projectId: number }) {
 
   const upload = useUploadFile(projectId);
   const job = useJob(jobId);
+  const queryClient = useQueryClient();
 
   const isUploading = upload.isPending;
   const isProcessing = jobId !== null && job.data?.status === "running";
   const isDone = job.data?.status === "done";
   const jobFailed = job.data?.status === "failed";
   const uploadFailed = upload.isError && !localError;
+
+  // The job-poll cache (["jobs", jobId]) is the only thing useJob touches -
+  // every other query on the page (file status badge, Overview stats,
+  // Elements tab) was left showing its pre-upload snapshot until a full
+  // reload, even though "Processing complete" below correctly implied
+  // everything had actually finished. Confirmed live: Total elements stayed
+  // at 0 with the file still showing "Uploaded" right after a real upload
+  // that had genuinely extracted and classified everything.
+  useEffect(() => {
+    if (isDone) {
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
+    }
+  }, [isDone, projectId, queryClient]);
 
   function hasAllowedExtension(file: File): boolean {
     const name = file.name.toLowerCase();

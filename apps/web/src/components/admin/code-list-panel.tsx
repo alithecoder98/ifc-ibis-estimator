@@ -120,7 +120,12 @@ export function CodeListPanel() {
           onValueChange={(v) => setFamilyFilter(v ?? ALL)}
         >
           <SelectTrigger size="sm">
-            <SelectValue placeholder="Family" />
+            {/* Base UI's Select.Value shows the raw stored value unless
+                given a children render-prop (unlike Radix) - was showing
+                the literal "__all__" sentinel instead of "All families". */}
+            <SelectValue placeholder="Family">
+              {(value: string) => (value === ALL ? "All families" : value)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All families</SelectItem>
