@@ -32,9 +32,12 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-every-environment-min-32-bytes"
     jwt_expires_minutes: int = 60
 
-    # Dev-only convenience: when true, every request is treated as a fixed admin user,
-    # no login needed. Guarded in app/main.py so the app refuses to start with this on
-    # outside "development" - never let this reach staging/production.
+    # When true, every request is treated as a fixed admin user, no login needed.
+    # Originally dev-only with a hard startup refusal outside "development" -
+    # deliberately relaxed (2026-10-16) to also run this way wherever this app is
+    # deployed, for this project's current stage (see README). app/main.py logs a
+    # loud warning instead of refusing to start when this is true outside
+    # "development", so it's visible without being a hard block.
     auth_disabled: bool = False
 
     # Local/open-source model serving (Phase 3, decided 2026-10-13) - no API key, it's

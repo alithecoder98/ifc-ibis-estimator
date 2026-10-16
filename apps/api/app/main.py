@@ -1,5 +1,7 @@
 """FastAPI application entrypoint."""
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,11 +19,20 @@ from app.routers.settings import router as settings_router
 configure_logging()
 
 _settings = get_settings()
+# Used to hard-refuse to start outside ENVIRONMENT=development. Deliberately
+# relaxed (2026-10-16, explicit decision): every request currently needs to
+# work with no login for anyone who has this deployment's URL, including
+# wherever it's hosted, not just local dev - see README's "no built-in access
+# control" callout for what that actually means. This is a real, intentional
+# trade-off for this project's current stage, not an oversight - revisit
+# before anything resembling real/sensitive data goes through a deployment
+# running this way.
 if _settings.auth_disabled and _settings.environment != "development":
-    raise RuntimeError(
-        "AUTH_DISABLED=true outside ENVIRONMENT=development — refusing to start. "
-        "This bypass is for local dev convenience only and must never run in "
-        "staging/production."
+    logging.getLogger(__name__).warning(
+        "AUTH_DISABLED=true outside ENVIRONMENT=development - every request to "
+        "this instance is treated as a fixed admin user, no login required. "
+        "Intentional for this project's current stage; not a secure "
+        "configuration for anything beyond that."
     )
 
 app = FastAPI(title="IFC-to-IBIS Estimator API")

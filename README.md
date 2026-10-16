@@ -142,13 +142,17 @@ pnpm dev
 API: http://localhost:8000 · Frontend: http://localhost:3000 · Garage S3 API:
 http://localhost:3900 (no web console — it's API-only)
 
-### Skipping login during local dev
+### Skipping login (local dev, and currently the deployed app too)
 
-Set `AUTH_DISABLED=true` in `apps/api/.env` and restart the API — every request then
-becomes a fixed `dev@local.test` admin user, no login screen, no cookie needed. It's
-guarded: the app refuses to start if this is `true` and `ENVIRONMENT` isn't
-`development`, so it can't accidentally reach a hosted environment. Tests always run
-with real auth regardless of this setting.
+Set `AUTH_DISABLED=true` in `apps/api/.env` (or as a deployment's env var) and restart
+the API — every request then becomes a fixed `dev@local.test` admin user, no login
+screen, no cookie needed. **This is also the project's current deliberate choice for
+hosted deployments, not just local dev** (2026-10-16 decision) — see the callout under
+[Deploying on Render](#deploying-on-render-with-docker) for exactly what that means and
+why it's a real trade-off, not an oversight. The app logs a loud startup warning
+whenever this is `true` outside `ENVIRONMENT=development`, but no longer refuses to
+start — that hard refusal existed when this was meant to be local-only. Tests always
+run with real auth regardless of this setting.
 
 ## Environment variables
 
@@ -166,7 +170,7 @@ Copy each app's `.env.example` and fill in the real values. **Never commit a `.e
 | `S3_BUCKET` / `S3_REGION` | Storage bucket name/region |
 | `JWT_SECRET` | Random secret, minimum 32 bytes, used to sign auth cookies — generate a unique one per environment |
 | `JWT_EXPIRES_MINUTES` | Session length |
-| `AUTH_DISABLED` | Dev-only login bypass — must stay `false` outside local development |
+| `AUTH_DISABLED` | Login bypass — currently set `true` deliberately in this project's own deployments too, not just local dev (see [Deploying on Render](#deploying-on-render-with-docker)) |
 | `OLLAMA_BASE_URL` / `OLLAMA_EMBEDDING_MODEL` / `OLLAMA_LLM_MODEL` | Local AI model serving — just the *startup default*. Day-to-day, connect/reconfigure this from **Admin > LLM Connectivity** in the app instead (see below); a change there applies immediately, no restart needed. |
 | `JEV_API_URL` / `JEV_API_KEY` | The client's own classification tool — left blank until real API access exists |
 | `ENVIRONMENT` | `development` / `production` |
@@ -308,8 +312,8 @@ Dockerfile's Next.js standalone server does the same automatically.
    - **API** — Web Service, `apps/api/Dockerfile`, context `apps/api`. Set every
      `apps/api/.env.example` variable as a Render environment variable with real values
      (`DATABASE_URL`/`REDIS_URL` from steps 1 above, `S3_*`/`OLLAMA_BASE_URL` from step 2,
-     a freshly generated `JWT_SECRET`, `ENVIRONMENT=production`, `AUTH_DISABLED=false`).
-     Leave `PORT` unset — Render sets it.
+     a freshly generated `JWT_SECRET`, `ENVIRONMENT=production`). Leave `PORT` unset —
+     Render sets it.
    - **Worker** — Background Worker, `apps/api/Dockerfile.worker`, context `apps/api`.
      Same environment variables as the API (it needs the same DB/Redis/storage/AI access).
    - **Web** — Web Service, `apps/web/Dockerfile`, context `apps/web`. Set the
@@ -318,8 +322,17 @@ Dockerfile's Next.js standalone server does the same automatically.
      Render URL once that's known.
 4. Run `alembic upgrade head` against the production database once (e.g. via a Render
    one-off job or shell) before the API serves real traffic.
-5. Seed an initial admin user the same way as local setup (`python -m app.cli seed-admin`)
-   against the production database.
+5. **Decide `AUTH_DISABLED`.** This project's own deployments currently set it `true`
+   deliberately (2026-10-16 decision) — no login screen, every request is treated as a
+   fixed admin user. That means **anyone who has the deployment's URL has full admin
+   access to every project and every piece of data in it** - there is no access control
+   at all. That's a real, intentional trade-off for this project's current stage (not
+   meant to carry real client data yet), not something to carry forward unexamined -
+   set it `false` instead (and follow local setup's login flow / seed a real admin user
+   below) the moment that stops being true for your deployment. The app logs a startup
+   warning either way when this is `true` outside local dev, but will start regardless.
+6. If `AUTH_DISABLED=false`: seed an initial admin user the same way as local setup
+   (`python -m app.cli seed-admin`) against the production database.
 
 ## Known limitations & outstanding deployment requirements
 
@@ -349,7 +362,12 @@ Dockerfile's Next.js standalone server does the same automatically.
   column; OpenAI's API can shorten `text-embedding-3-*` output via a `dimensions`
   parameter, but this integration doesn't send one yet — pick a model with 1024-dim
   native output (e.g. `bge-m3`, if your OpenAI-compatible provider serves it) instead.
-- **Auth bypass exists for local dev only** (`AUTH_DISABLED`) — guarded to refuse startup
-  outside `ENVIRONMENT=development`, but worth knowing it's in the codebase.
+- **No access control on a deployment running with `AUTH_DISABLED=true`** (the
+  project's own current, deliberate default - see [Deploying on Render](#deploying-on-render-with-docker)).
+  Every request is treated as a fixed admin user regardless of who's making it; anyone
+  with the deployment's URL can view, create, modify, or delete every project. There is
+  no per-user audit trail either (every row's "created/reviewed by" is the same shared
+  identity). Fine for this project's current stage, not something to carry into any
+  deployment that will hold real/sensitive data without switching it off first.
 - **No staging environment has existed yet** — every "verified live" claim in this
   project's history was against a local Docker Compose stack, not a hosted deployment.

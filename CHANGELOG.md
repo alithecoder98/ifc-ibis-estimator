@@ -30,6 +30,17 @@ All notable changes to this project are documented here. Format loosely follows
   OpenAI's own embedding models specifically (and for Anthropic, which isn't covered by
   either provider type).
 
+### Changed
+
+- **`AUTH_DISABLED` no longer hard-blocks startup outside local dev** (2026-10-16,
+  explicit decision) — relaxed from a `RuntimeError` refusal to a logged warning, so this
+  project's own deployments can also run with no login required, matching local dev.
+  **This means no access control on a deployment configured this way**: every request is
+  treated as the same fixed admin user regardless of who's making it. A deliberate
+  trade-off for this project's current stage, not an oversight - see README's "Deploying
+  on Render" and Known limitations sections for what it actually means and when to turn
+  it back off.
+
 ## [0.1.0] — Initial repository preparation
 
 First version prepared for version control and future hosted deployment. This entry
