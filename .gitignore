@@ -2,6 +2,11 @@
 /data/*
 !/data/README.md
 
+# Internal Claude Code session log (environment quirks, decision history) — kept
+# locally for picking the project back up, deliberately left out of the public repo
+# (see README.md/CHANGELOG.md for the project-facing documentation instead).
+/CLAUDE.md
+
 # Local env files (every app has its own; .env.example is the template that IS committed)
 .env
 .env.*
@@ -10,6 +15,10 @@
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# Ad-hoc local dev server output (redirected stdout/stderr when running servers
+# outside docker-compose, e.g. `uv run uvicorn ... > .api_dev.log`)
+*.log
 
 # Editor
 .vscode/*

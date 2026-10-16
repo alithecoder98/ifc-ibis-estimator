@@ -12,6 +12,13 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV DOCKER_BUILD=1
+# NEXT_PUBLIC_* vars are inlined into the client bundle at build time, not read at
+# container start - a plain runtime ENV on the final image would have no effect, every
+# deploy target needs its own build with its own backend URL baked in. Defaults to the
+# docker-compose network's api service for `docker compose build`; Render (or any other
+# host) overrides it via a Docker build argument pointing at that deploy's real API URL.
+ARG NEXT_PUBLIC_API_URL=http://api:8000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm build
 
 # Lean runtime: only the standalone server output, not the full node_modules tree.
