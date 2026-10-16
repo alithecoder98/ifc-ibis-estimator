@@ -11,8 +11,9 @@ always returns the real client.
 import hashlib
 
 import httpx
+from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.settings_store import get_ollama_connection
 
 
 class OllamaEmbedder:
@@ -54,6 +55,9 @@ class FakeEmbedder:
         return vector
 
 
-def get_embedder() -> OllamaEmbedder:
-    settings = get_settings()
-    return OllamaEmbedder(settings.ollama_base_url, settings.ollama_embedding_model)
+def get_embedder(db: Session) -> OllamaEmbedder:
+    # DB-backed, not just apps/api/.env - this repo is published without the
+    # author's own local Ollama instance, so a fresh clone configures its own
+    # connection from Admin > LLM Connectivity (app/core/settings_store.py).
+    connection = get_ollama_connection(db)
+    return OllamaEmbedder(connection.base_url, connection.embedding_model)

@@ -445,7 +445,7 @@ def test_get_element_endpoint_returns_full_detail() -> None:
         from app.core.constants import EMBEDDING_DIM
 
         original_get_embedder = projects_module.get_embedder
-        projects_module.get_embedder = lambda: FakeEmbedder(EMBEDDING_DIM)
+        projects_module.get_embedder = lambda db: FakeEmbedder(EMBEDDING_DIM)
         try:
             response = client.get(f"/projects/{project_id}/elements/{element_id}")
         finally:

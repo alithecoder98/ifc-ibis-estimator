@@ -15,8 +15,9 @@ from pathlib import Path
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
+from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.settings_store import get_ollama_connection
 from app.db.models import CodeList, ExampleMemory
 
 logger = logging.getLogger(__name__)
@@ -112,9 +113,10 @@ class OllamaLLMClient:
         )
 
 
-def get_llm_client() -> OllamaLLMClient:
-    settings = get_settings()
-    return OllamaLLMClient(settings.ollama_base_url, settings.ollama_llm_model)
+def get_llm_client(db: Session) -> OllamaLLMClient:
+    # DB-backed - see app/ai/embedder.py's get_embedder() for why.
+    connection = get_ollama_connection(db)
+    return OllamaLLMClient(connection.base_url, connection.llm_model)
 
 
 def _format_candidates(candidates: list[CodeList]) -> str:

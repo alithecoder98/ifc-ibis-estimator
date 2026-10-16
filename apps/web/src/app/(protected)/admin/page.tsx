@@ -2,6 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeListPanel } from "@/components/admin/code-list-panel";
+import { LLMConnectivityPanel } from "@/components/admin/llm-connectivity-panel";
 import { RulesPanel } from "@/components/admin/rules-panel";
 import { ThresholdPanel } from "@/components/admin/threshold-panel";
 
@@ -18,6 +19,7 @@ export default function AdminPage() {
           <TabsTrigger value="codes">Code lists</TabsTrigger>
           <TabsTrigger value="rules">Rules</TabsTrigger>
           <TabsTrigger value="threshold">Threshold</TabsTrigger>
+          <TabsTrigger value="llm">LLM Connectivity</TabsTrigger>
         </TabsList>
         <TabsContent value="codes" className="pt-4">
           <CodeListPanel />
@@ -27,6 +29,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="threshold" className="pt-4">
           <ThresholdPanel />
+        </TabsContent>
+        <TabsContent value="llm" className="pt-4">
+          <LLMConnectivityPanel />
         </TabsContent>
       </Tabs>
     </div>

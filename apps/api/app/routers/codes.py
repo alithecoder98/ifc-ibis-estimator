@@ -52,7 +52,7 @@ def import_codes(
             status_code=status.HTTP_400_BAD_REQUEST, detail="file has no rows"
         )
 
-    code_rows = import_codes_rows(db, rows, get_embedder())
+    code_rows = import_codes_rows(db, rows, get_embedder(db))
     db.commit()
     for row in code_rows:
         db.refresh(row)
@@ -89,4 +89,4 @@ def search_codes(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "estimator", "viewer")),
 ) -> list[CodeList]:
-    return search_codes_query(db, q, get_embedder(), family=family, limit=limit)
+    return search_codes_query(db, q, get_embedder(db), family=family, limit=limit)

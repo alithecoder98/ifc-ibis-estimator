@@ -611,6 +611,41 @@ export interface paths {
     patch: operations["update_threshold_settings_threshold_patch"];
     trace?: never;
   };
+  "/settings/llm": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Llm Connectivity */
+    get: operations["get_llm_connectivity_settings_llm_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update Llm Connectivity */
+    patch: operations["update_llm_connectivity_settings_llm_patch"];
+    trace?: never;
+  };
+  "/settings/llm/test": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Test Llm Connectivity */
+    post: operations["test_llm_connectivity_settings_llm_test_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/": {
     parameters: {
       query?: never;
@@ -828,6 +863,33 @@ export interface components {
       progress: number;
       /** Error */
       error: string | null;
+    };
+    /** LLMConnectivityOut */
+    LLMConnectivityOut: {
+      /** Base Url */
+      base_url: string;
+      /** Embedding Model */
+      embedding_model: string;
+      /** Llm Model */
+      llm_model: string;
+    };
+    /** LLMConnectivityTestOut */
+    LLMConnectivityTestOut: {
+      /** Ok */
+      ok: boolean;
+      /** Message */
+      message: string;
+      /** Available Models */
+      available_models?: string[];
+    };
+    /** LLMConnectivityUpdate */
+    LLMConnectivityUpdate: {
+      /** Base Url */
+      base_url: string;
+      /** Embedding Model */
+      embedding_model: string;
+      /** Llm Model */
+      llm_model: string;
     };
     /** LoginRequest */
     LoginRequest: {
@@ -2258,6 +2320,107 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ThresholdOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_llm_connectivity_settings_llm_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LLMConnectivityOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_llm_connectivity_settings_llm_patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LLMConnectivityUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LLMConnectivityOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  test_llm_connectivity_settings_llm_test_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LLMConnectivityUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LLMConnectivityTestOut"];
         };
       };
       /** @description Validation Error */

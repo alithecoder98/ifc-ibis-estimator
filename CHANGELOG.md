@@ -3,6 +3,20 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Admin > LLM Connectivity** — since this repo is now published without the author's
+  own local Ollama instance, every clone/deployment needs to connect its own. This new
+  admin tab shows the currently active Ollama host and model names (previously only
+  visible/settable via `apps/api/.env`), lets you change them, and includes a "Test
+  connection" action that checks the host is reachable and both models are actually
+  pulled there before you save. DB-backed (same `app_settings` table the auto-accept
+  threshold already uses) — a change applies to the very next embedding/classification
+  call, no restart required. Ollama only for now, not a multi-provider credential
+  manager — see README's Known limitations.
+
 ## [0.1.0] — Initial repository preparation
 
 First version prepared for version control and future hosted deployment. This entry

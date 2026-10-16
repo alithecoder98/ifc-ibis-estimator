@@ -167,7 +167,7 @@ Copy each app's `.env.example` and fill in the real values. **Never commit a `.e
 | `JWT_SECRET` | Random secret, minimum 32 bytes, used to sign auth cookies — generate a unique one per environment |
 | `JWT_EXPIRES_MINUTES` | Session length |
 | `AUTH_DISABLED` | Dev-only login bypass — must stay `false` outside local development |
-| `OLLAMA_BASE_URL` / `OLLAMA_EMBEDDING_MODEL` / `OLLAMA_LLM_MODEL` | Local AI model serving |
+| `OLLAMA_BASE_URL` / `OLLAMA_EMBEDDING_MODEL` / `OLLAMA_LLM_MODEL` | Local AI model serving — just the *startup default*. Day-to-day, connect/reconfigure this from **Admin > LLM Connectivity** in the app instead (see below); a change there applies immediately, no restart needed. |
 | `JEV_API_URL` / `JEV_API_KEY` | The client's own classification tool — left blank until real API access exists |
 | `ENVIRONMENT` | `development` / `production` |
 | `PORT` | Overrides the listening port (used by the Docker image, defaults to 8000) |
@@ -177,6 +177,18 @@ Copy each app's `.env.example` and fill in the real values. **Never commit a `.e
 | Variable | Purpose |
 |---|---|
 | `NEXT_PUBLIC_API_URL` | Base URL of the backend API. Inlined at **build** time, not read at runtime — see [Deploying on Render](#deploying-on-render-with-docker). |
+
+## Connecting your own LLM
+
+This repo is published without the author's local Ollama instance, so a fresh clone (or
+anyone else's deployment of it) needs to point at its own. The `OLLAMA_*` env vars above
+only set the *startup default* — the real, day-to-day way to configure this is
+**Admin > LLM Connectivity** in the running app: it shows the currently active Ollama
+host and the two model names (embeddings + classification), lets you change them, and has
+a **Test connection** button that checks the host is reachable and both models are
+actually pulled there before you save. A change takes effect on the very next
+embedding/classification call — no restart. This currently supports Ollama only (not
+hosted providers like OpenAI/Anthropic); see [Known limitations](#known-limitations--outstanding-deployment-requirements).
 
 ## Required data files
 
@@ -268,10 +280,11 @@ Dockerfile's Next.js standalone server does the same automatically.
      reach. Render has no built-in equivalent.
    - **An Ollama endpoint reachable over the network** for embeddings/classification.
      Render's standard web/worker services don't include GPU access on most plans, and
-     `qwen2.5:7b-instruct` is impractically slow on CPU-only. Either point `OLLAMA_BASE_URL`
-     at a GPU host you run elsewhere, or swap the `Embedder`/`LLMClient` implementations
-     for a hosted API — this is a real architecture decision, not something this prep
-     changed or assumed an answer for.
+     `qwen2.5:7b-instruct` is impractically slow on CPU-only. Point it at a GPU host you
+     run elsewhere — either via the `OLLAMA_*` env vars at deploy time, or afterward from
+     **Admin > LLM Connectivity** in the running app (no redeploy needed to change it) —
+     or swap the `Embedder`/`LLMClient` implementations for a hosted API; that's a real
+     architecture decision, not something this prep changed or assumed an answer for.
 3. **Create three Render services from this repo**, each a "Docker" web/background
    service pointed at the relevant Dockerfile and build context:
    - **API** — Web Service, `apps/api/Dockerfile`, context `apps/api`. Set every
@@ -302,6 +315,9 @@ Dockerfile's Next.js standalone server does the same automatically.
   [Deploying on Render](#deploying-on-render-with-docker) above) — both need an external
   provider or a different architecture decision before a hosted deployment can actually
   run the full AI pipeline.
+- **Admin > LLM Connectivity only supports Ollama.** It lets you point at a different
+  Ollama host/models, not switch to a hosted provider (OpenAI/Anthropic/etc.) — that
+  would need new `Embedder`/`LLMClient` implementations, not just a settings UI.
 - **Auth bypass exists for local dev only** (`AUTH_DISABLED`) — guarded to refuse startup
   outside `ENVIRONMENT=development`, but worth knowing it's in the codebase.
 - **No staging environment has existed yet** — every "verified live" claim in this

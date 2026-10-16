@@ -116,8 +116,8 @@ def classify_elements(
     use_llm = engine in ("llm", "both")
     use_jev = engine in ("jev", "both")
 
-    embedder = get_embedder() if use_llm else None
-    llm_client = get_llm_client() if use_llm else None
+    embedder = get_embedder(db) if use_llm else None
+    llm_client = get_llm_client(db) if use_llm else None
     rules_text = load_estimating_rules() if use_llm else None
     jev_client = get_jev_client() if use_jev else None
     # Read once per call, not per element/group - an admin changing this mid-run

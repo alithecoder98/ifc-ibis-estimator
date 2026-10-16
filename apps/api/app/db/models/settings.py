@@ -27,3 +27,11 @@ class AppSetting(Base):
 
 # AppSetting.key values.
 AUTO_ACCEPT_THRESHOLD_KEY = "auto_accept_threshold"
+# This repo is published without the author's own local Ollama instance - a fresh
+# clone needs its own connection configured from the UI (Admin > LLM Connectivity),
+# not just apps/api/.env, since not everyone running this has shell access to the
+# deployment. Three keys, not one JSON blob, so each can be read/updated independently
+# the same way AUTO_ACCEPT_THRESHOLD_KEY already is.
+OLLAMA_BASE_URL_KEY = "ollama_base_url"
+OLLAMA_EMBEDDING_MODEL_KEY = "ollama_embedding_model"
+OLLAMA_LLM_MODEL_KEY = "ollama_llm_model"

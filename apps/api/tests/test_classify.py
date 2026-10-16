@@ -394,8 +394,8 @@ def test_classify_elements_engine_llm_calls_llm_only() -> None:
 
         original_get_embedder = classify_module.get_embedder
         original_get_llm_client = classify_module.get_llm_client
-        classify_module.get_embedder = lambda: FakeEmbedder(EMBEDDING_DIM)
-        classify_module.get_llm_client = lambda: llm_client
+        classify_module.get_embedder = lambda db: FakeEmbedder(EMBEDDING_DIM)
+        classify_module.get_llm_client = lambda db: llm_client
         try:
             classify_elements(db, [element])
         finally:
@@ -449,8 +449,8 @@ def test_classify_elements_engine_both_agree() -> None:
         original_get_embedder = classify_module.get_embedder
         original_get_llm_client = classify_module.get_llm_client
         original_get_jev_client = classify_module.get_jev_client
-        classify_module.get_embedder = lambda: FakeEmbedder(EMBEDDING_DIM)
-        classify_module.get_llm_client = lambda: llm_client
+        classify_module.get_embedder = lambda db: FakeEmbedder(EMBEDDING_DIM)
+        classify_module.get_llm_client = lambda db: llm_client
         classify_module.get_jev_client = lambda: AgreeingJevClient()
         try:
             classify_elements(db, [element])
@@ -504,8 +504,8 @@ def test_classify_elements_engine_both_disagree() -> None:
         original_get_embedder = classify_module.get_embedder
         original_get_llm_client = classify_module.get_llm_client
         original_get_jev_client = classify_module.get_jev_client
-        classify_module.get_embedder = lambda: FakeEmbedder(EMBEDDING_DIM)
-        classify_module.get_llm_client = lambda: llm_client
+        classify_module.get_embedder = lambda db: FakeEmbedder(EMBEDDING_DIM)
+        classify_module.get_llm_client = lambda db: llm_client
         classify_module.get_jev_client = lambda: DisagreeingJevClient()
         try:
             classify_elements(db, [element])

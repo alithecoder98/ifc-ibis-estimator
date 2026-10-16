@@ -315,7 +315,7 @@ def get_element(
     app/ai/element_detail.py's module docstring for why) - this always calls the
     real embedder, regardless of the project's classification_engine setting.
     """
-    detail = get_element_detail(db, element_id, get_embedder())
+    detail = get_element_detail(db, element_id, get_embedder(db))
     ifc_file = (
         db.get(IfcFile, detail.element.ifc_file_id) if detail is not None else None
     )

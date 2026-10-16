@@ -216,7 +216,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 @pytest.fixture
 def admin_client(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        codes_router_module, "get_embedder", lambda: FakeEmbedder(EMBEDDING_DIM)
+        codes_router_module, "get_embedder", lambda db: FakeEmbedder(EMBEDDING_DIM)
     )
     db = SessionLocal()
     user = User(email="codes-3.1@example.com", password_hash="x", role="admin")

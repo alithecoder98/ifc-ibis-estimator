@@ -1584,6 +1584,130 @@
         }
       }
     },
+    "/settings/llm": {
+      "get": {
+        "tags": ["settings"],
+        "summary": "Get Llm Connectivity",
+        "operationId": "get_llm_connectivity_settings_llm_get",
+        "parameters": [
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LLMConnectivityOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["settings"],
+        "summary": "Update Llm Connectivity",
+        "operationId": "update_llm_connectivity_settings_llm_patch",
+        "parameters": [
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LLMConnectivityUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LLMConnectivityOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/llm/test": {
+      "post": {
+        "tags": ["settings"],
+        "summary": "Test Llm Connectivity",
+        "operationId": "test_llm_connectivity_settings_llm_test_post",
+        "parameters": [
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LLMConnectivityUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LLMConnectivityTestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -1982,6 +2106,48 @@
         "type": "object",
         "required": ["id", "type", "status", "progress", "error"],
         "title": "JobOut"
+      },
+      "LLMConnectivityOut": {
+        "properties": {
+          "base_url": { "type": "string", "title": "Base Url" },
+          "embedding_model": { "type": "string", "title": "Embedding Model" },
+          "llm_model": { "type": "string", "title": "Llm Model" }
+        },
+        "type": "object",
+        "required": ["base_url", "embedding_model", "llm_model"],
+        "title": "LLMConnectivityOut"
+      },
+      "LLMConnectivityTestOut": {
+        "properties": {
+          "ok": { "type": "boolean", "title": "Ok" },
+          "message": { "type": "string", "title": "Message" },
+          "available_models": {
+            "items": { "type": "string" },
+            "type": "array",
+            "title": "Available Models"
+          }
+        },
+        "type": "object",
+        "required": ["ok", "message"],
+        "title": "LLMConnectivityTestOut"
+      },
+      "LLMConnectivityUpdate": {
+        "properties": {
+          "base_url": { "type": "string", "minLength": 1, "title": "Base Url" },
+          "embedding_model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Embedding Model"
+          },
+          "llm_model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Llm Model"
+          }
+        },
+        "type": "object",
+        "required": ["base_url", "embedding_model", "llm_model"],
+        "title": "LLMConnectivityUpdate"
       },
       "LoginRequest": {
         "properties": {

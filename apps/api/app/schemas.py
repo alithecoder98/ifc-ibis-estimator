@@ -248,3 +248,21 @@ class ThresholdOut(BaseModel):
 
 class ThresholdUpdate(BaseModel):
     auto_accept_threshold: float = Field(ge=0.0, le=1.0)
+
+
+class LLMConnectivityOut(BaseModel):
+    base_url: str
+    embedding_model: str
+    llm_model: str
+
+
+class LLMConnectivityUpdate(BaseModel):
+    base_url: str = Field(min_length=1)
+    embedding_model: str = Field(min_length=1)
+    llm_model: str = Field(min_length=1)
+
+
+class LLMConnectivityTestOut(BaseModel):
+    ok: bool
+    message: str
+    available_models: list[str] = Field(default_factory=list)

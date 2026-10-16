@@ -52,8 +52,8 @@ def main() -> None:
             print(f"no elements found for project {project_id}")
             return
 
-        embedder = get_embedder()
-        llm_client = get_llm_client()
+        embedder = get_embedder(db)
+        llm_client = get_llm_client(db)
         rules_text = load_estimating_rules()
 
         elements_by_group: dict[str, list[Element]] = {}

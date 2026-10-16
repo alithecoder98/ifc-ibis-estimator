@@ -1,4 +1,7 @@
-"""Phase 4.6: the admin-editable auto-accept confidence threshold.
+"""Phase 4.6: the admin-editable auto-accept confidence threshold. Also this session:
+LLM Connectivity (Admin > LLM Connectivity) - this repo is published without the
+author's own local Ollama instance, so a fresh clone needs its connection configured
+from the UI, not just apps/api/.env.
 
 test_get_/set_auto_accept_threshold_* exercise app/core/settings_store.py directly
 against the real DB. test_classify_elements_uses_db_threshold_override proves
@@ -10,6 +13,7 @@ without a restart. test_*_endpoint_* cover the HTTP layer.
 
 import uuid
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -19,7 +23,13 @@ from app.ai.llm import LLMResult
 from app.core.config import get_settings
 from app.core.constants import EMBEDDING_DIM
 from app.core.security import create_access_token
-from app.core.settings_store import get_auto_accept_threshold, set_auto_accept_threshold
+from app.core.settings_store import (
+    OllamaConnection,
+    get_auto_accept_threshold,
+    get_ollama_connection,
+    set_auto_accept_threshold,
+    set_ollama_connection,
+)
 from app.db.models import (
     AppSetting,
     Classification,
@@ -30,12 +40,28 @@ from app.db.models import (
     Quantity,
     User,
 )
-from app.db.models.settings import AUTO_ACCEPT_THRESHOLD_KEY
+from app.db.models.settings import (
+    AUTO_ACCEPT_THRESHOLD_KEY,
+    OLLAMA_BASE_URL_KEY,
+    OLLAMA_EMBEDDING_MODEL_KEY,
+    OLLAMA_LLM_MODEL_KEY,
+)
 from app.db.session import SessionLocal
 from app.main import app
 from tests.conftest import cleanup_project_cascade
 
 client = TestClient(app)
+
+
+def _clear_llm_override() -> None:
+    db = SessionLocal()
+    db.query(AppSetting).filter(
+        AppSetting.key.in_(
+            [OLLAMA_BASE_URL_KEY, OLLAMA_EMBEDDING_MODEL_KEY, OLLAMA_LLM_MODEL_KEY]
+        )
+    ).delete(synchronize_session=False)
+    db.commit()
+    db.close()
 
 
 def _clear_threshold_override() -> None:
@@ -169,8 +195,8 @@ def test_classify_elements_uses_db_threshold_override() -> None:
 
         original_get_embedder = classify_module.get_embedder
         original_get_llm_client = classify_module.get_llm_client
-        classify_module.get_embedder = lambda: FakeEmbedder(EMBEDDING_DIM)
-        classify_module.get_llm_client = lambda: llm_client
+        classify_module.get_embedder = lambda db: FakeEmbedder(EMBEDDING_DIM)
+        classify_module.get_llm_client = lambda db: llm_client
         try:
             element = db.get(Element, element_id)
             classify_elements(db, [element])
@@ -281,3 +307,198 @@ def test_update_threshold_requires_admin() -> None:
         db.query(User).filter(User.id == user_id).delete()
         db.commit()
         db.close()
+
+
+def test_get_ollama_connection_falls_back_to_settings_default() -> None:
+    db = SessionLocal()
+    try:
+        _clear_llm_override()
+        defaults = get_settings()
+        connection = get_ollama_connection(db)
+        assert connection.base_url == defaults.ollama_base_url
+        assert connection.embedding_model == defaults.ollama_embedding_model
+        assert connection.llm_model == defaults.ollama_llm_model
+    finally:
+        db.close()
+
+
+def test_set_and_get_ollama_connection_persists() -> None:
+    db = SessionLocal()
+    try:
+        set_ollama_connection(
+            db,
+            OllamaConnection(
+                base_url="http://my-ollama-host:11434",
+                embedding_model="my-embed-model",
+                llm_model="my-llm-model",
+            ),
+        )
+        connection = get_ollama_connection(db)
+        assert connection.base_url == "http://my-ollama-host:11434"
+        assert connection.embedding_model == "my-embed-model"
+        assert connection.llm_model == "my-llm-model"
+
+        # A fresh session must see it too, same reasoning as the threshold test.
+        db2 = SessionLocal()
+        try:
+            assert get_ollama_connection(db2).base_url == "http://my-ollama-host:11434"
+        finally:
+            db2.close()
+    finally:
+        _clear_llm_override()
+        db.close()
+
+
+def test_get_llm_connectivity_endpoint(admin_client: TestClient) -> None:
+    try:
+        response = admin_client.get("/settings/llm")
+        assert response.status_code == 200
+        defaults = get_settings()
+        assert response.json() == {
+            "base_url": defaults.ollama_base_url,
+            "embedding_model": defaults.ollama_embedding_model,
+            "llm_model": defaults.ollama_llm_model,
+        }
+    finally:
+        _clear_llm_override()
+
+
+def test_update_llm_connectivity_endpoint(admin_client: TestClient) -> None:
+    try:
+        response = admin_client.patch(
+            "/settings/llm",
+            json={
+                "base_url": "http://other-host:11434",
+                "embedding_model": "embed-v2",
+                "llm_model": "llm-v2",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json() == {
+            "base_url": "http://other-host:11434",
+            "embedding_model": "embed-v2",
+            "llm_model": "llm-v2",
+        }
+
+        get_response = admin_client.get("/settings/llm")
+        assert get_response.json()["base_url"] == "http://other-host:11434"
+    finally:
+        _clear_llm_override()
+
+
+def test_update_llm_connectivity_requires_admin() -> None:
+    db = SessionLocal()
+    user = User(
+        email=f"settings-llm-estimator-{uuid.uuid4().hex}@example.com",
+        password_hash="x",
+        role="estimator",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    user_id = user.id
+    db.close()
+    try:
+        client.cookies.set(
+            "access_token", create_access_token(user_id=user_id, role="estimator")
+        )
+        response = client.patch(
+            "/settings/llm",
+            json={
+                "base_url": "http://x:11434",
+                "embedding_model": "x",
+                "llm_model": "x",
+            },
+        )
+        assert response.status_code == 403
+    finally:
+        client.cookies.clear()
+        _clear_llm_override()
+        db = SessionLocal()
+        db.query(User).filter(User.id == user_id).delete()
+        db.commit()
+        db.close()
+
+
+class _FakeTagsResponse:
+    def __init__(self, models: list[str]):
+        self._models = models
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict:
+        return {"models": [{"name": name} for name in self._models]}
+
+
+def test_llm_connectivity_test_endpoint_reports_success(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.ai.ollama_connectivity as ollama_test_module
+
+    monkeypatch.setattr(
+        ollama_test_module.httpx,
+        "get",
+        lambda url, timeout: _FakeTagsResponse(
+            ["bge-m3:latest", "qwen2.5:7b-instruct"]
+        ),
+    )
+    response = admin_client.post(
+        "/settings/llm/test",
+        json={
+            "base_url": "http://some-host:11434",
+            "embedding_model": "bge-m3",
+            "llm_model": "qwen2.5:7b-instruct",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert "bge-m3:latest" in body["available_models"]
+
+
+def test_llm_connectivity_test_endpoint_reports_missing_models(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.ai.ollama_connectivity as ollama_test_module
+
+    monkeypatch.setattr(
+        ollama_test_module.httpx,
+        "get",
+        lambda url, timeout: _FakeTagsResponse(["some-other-model:latest"]),
+    )
+    response = admin_client.post(
+        "/settings/llm/test",
+        json={
+            "base_url": "http://some-host:11434",
+            "embedding_model": "bge-m3",
+            "llm_model": "qwen2.5:7b-instruct",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is False
+    assert "bge-m3" in body["message"]
+
+
+def test_llm_connectivity_test_endpoint_reports_unreachable_host(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.ai.ollama_connectivity as ollama_test_module
+
+    def _raise(url, timeout):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(ollama_test_module.httpx, "get", _raise)
+    response = admin_client.post(
+        "/settings/llm/test",
+        json={
+            "base_url": "http://unreachable-host:11434",
+            "embedding_model": "bge-m3",
+            "llm_model": "qwen2.5:7b-instruct",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is False
+    assert "unreachable-host" in body["message"]
