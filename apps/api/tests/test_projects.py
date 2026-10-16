@@ -615,3 +615,126 @@ def test_classify_endpoint_enqueues_job_for_extracted_file() -> None:
         if project_id is not None:
             _cleanup_project(project_id)
         _delete_user(user.id)
+
+
+def test_reprocess_endpoint_rejects_already_extracted_file() -> None:
+    """A real file can be stuck "uploaded" forever if its original job is lost
+    from the queue (e.g. a Redis restart) - /reprocess exists to recover from
+    that. It must stay restricted to uploaded/failed: unlike /classify's
+    append-only re-evaluation, re-running extraction on an already-"extracted"
+    file would insert a second, duplicate set of Element rows.
+    """
+    user = _create_user("estimator-reprocess-a@example.com", "estimator")
+    _login_as(user)
+    project_id = None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Reprocess 400 Project"}
+        ).json()["id"]
+        with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+            file_id = client.post(
+                f"/projects/{project_id}/files",
+                files={"file": ("sample.ifc", fh, "application/octet-stream")},
+            ).json()["id"]
+
+        db = SessionLocal()
+        ifc_file = db.get(IfcFile, file_id)
+        ifc_file.status = "extracted"
+        db.commit()
+        db.close()
+
+        response = client.post(f"/projects/{project_id}/files/{file_id}/reprocess")
+        assert response.status_code == 400
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(user.id)
+
+
+def test_reprocess_endpoint_404_for_file_in_wrong_project() -> None:
+    user = _create_user("estimator-reprocess-b@example.com", "estimator")
+    _login_as(user)
+    project_id, other_project_id = None, None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Reprocess 404 Project"}
+        ).json()["id"]
+        other_project_id = client.post(
+            "/projects", json={"name": "Reprocess 404 Other Project"}
+        ).json()["id"]
+        with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+            file_id = client.post(
+                f"/projects/{project_id}/files",
+                files={"file": ("sample.ifc", fh, "application/octet-stream")},
+            ).json()["id"]
+
+        response = client.post(
+            f"/projects/{other_project_id}/files/{file_id}/reprocess"
+        )
+        assert response.status_code == 404
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        if other_project_id is not None:
+            _cleanup_project(other_project_id)
+        _delete_user(user.id)
+
+
+def test_reprocess_endpoint_requires_estimator_or_admin() -> None:
+    user = _create_user("estimator-reprocess-c@example.com", "estimator")
+    _login_as(user)
+    project_id = client.post(
+        "/projects", json={"name": "Reprocess 403 Project"}
+    ).json()["id"]
+    with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+        file_id = client.post(
+            f"/projects/{project_id}/files",
+            files={"file": ("sample.ifc", fh, "application/octet-stream")},
+        ).json()["id"]
+    client.cookies.clear()
+
+    viewer = _create_user("viewer-reprocess-c@example.com", "viewer")
+    _login_as(viewer)
+    try:
+        response = client.post(f"/projects/{project_id}/files/{file_id}/reprocess")
+        assert response.status_code == 403
+    finally:
+        client.cookies.clear()
+        _delete_user(viewer.id)
+        _cleanup_project(project_id)
+        _delete_user(user.id)
+
+
+def test_reprocess_endpoint_enqueues_job_for_uploaded_file() -> None:
+    user = _create_user("estimator-reprocess-d@example.com", "estimator")
+    _login_as(user)
+    project_id = None
+    try:
+        project_id = client.post(
+            "/projects", json={"name": "Reprocess 202 Project"}
+        ).json()["id"]
+        with open(FIXTURES_DIR / "sample.ifc", "rb") as fh:
+            file_id = client.post(
+                f"/projects/{project_id}/files",
+                files={"file": ("sample.ifc", fh, "application/octet-stream")},
+            ).json()["id"]
+
+        # The file's own original upload-time job is irrelevant here - this
+        # proves /reprocess enqueues a genuinely new one on top of it, which
+        # is exactly what recovers a file whose first job was lost.
+        response = client.post(f"/projects/{project_id}/files/{file_id}/reprocess")
+        assert response.status_code == 202
+        job_id = response.json()["id"]
+
+        db = SessionLocal()
+        job = db.get(Job, job_id)
+        assert job.type == "extract"
+        assert job.ifc_file_id == file_id
+        db.close()
+    finally:
+        client.cookies.clear()
+        if project_id is not None:
+            _cleanup_project(project_id)
+        _delete_user(user.id)

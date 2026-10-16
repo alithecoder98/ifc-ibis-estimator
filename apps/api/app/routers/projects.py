@@ -39,6 +39,7 @@ from app.schemas import (
     ElementDetailOut,
     ElementRowOut,
     IfcFileOut,
+    JobIdOut,
     ProjectCreate,
     ProjectOut,
     ProjectSummaryOut,
@@ -566,6 +567,46 @@ def classify_file(
     get_queue().enqueue(reclassify_ifc_file, job.id, file_id, job_timeout=1200)
 
     return {"id": job.id}
+
+
+@router.post(
+    "/{project_id}/files/{file_id}/reprocess",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=JobIdOut,
+)
+def reprocess_file(
+    project_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "estimator")),
+) -> JobIdOut:
+    """Retries the full extract -> classify -> fragments pipeline for a file
+    whose original job never finished. Found live: a file's upload-time job can
+    be lost from the Redis queue (e.g. a Redis restart) while the file's own
+    status row stays "uploaded" forever, with nothing in the UI to recover -
+    the frontend's only trigger for this pipeline was the one-shot enqueue at
+    upload time. Restricted to "uploaded"/"failed" - extraction isn't additive-
+    safe (a re-run on an already-"extracted" file would insert a second set of
+    duplicate Element rows), unlike /classify's append-only re-evaluation.
+    """
+    ifc_file = db.get(IfcFile, file_id)
+    if ifc_file is None or ifc_file.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="file not found"
+        )
+    if ifc_file.status not in ("uploaded", "failed"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"file can't be reprocessed from status: {ifc_file.status}",
+        )
+
+    job = create_job(db, type="extract", project_id=project_id, ifc_file_id=file_id)
+    db.commit()
+
+    # Same job_timeout reasoning as the original upload-time enqueue above.
+    get_queue().enqueue(process_ifc_file, job.id, file_id, job_timeout=1200)
+
+    return JobIdOut(id=job.id)
 
 
 def _get_project_element(

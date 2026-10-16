@@ -305,12 +305,13 @@ export interface paths {
     };
     /**
      * Export Project Excel
-     * @description Phase 6.6 — same data as the CSV export, as a real .xlsx workbook
-     *     (frozen header, column widths, autofilter). Not the client's real IBIS
-     *     import format - that template still hasn't arrived (see CLAUDE.md's
-     *     "Still open" list) - just a genuinely Excel-shaped file to open today,
-     *     swappable for the real template later without touching how rows are
-     *     queried (see _export_rows above, and app/ai/excel_export.py).
+     * @description A partial first step toward Phase 7.1 (not Phase 6.6, which is "Audit
+     *     trail" - a different, unbuilt feature - see app/ai/excel_export.py's
+     *     module docstring for the full correction). Same data as the CSV export,
+     *     as a real .xlsx workbook (frozen header, column widths, autofilter). Not
+     *     the client's real IBIS import format or 7.1's full three-sheet spec -
+     *     just a genuinely Excel-shaped single sheet to open today, swappable
+     *     later without touching how rows are queried (see _export_rows above).
      */
     get: operations["export_project_excel_projects__project_id__export_xlsx_get"];
     put?: never;
@@ -384,6 +385,33 @@ export interface paths {
      *     fresher rows rather than deleting the old ones.
      */
     post: operations["classify_file_projects__project_id__files__file_id__classify_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{project_id}/files/{file_id}/reprocess": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reprocess File
+     * @description Retries the full extract -> classify -> fragments pipeline for a file
+     *     whose original job never finished. Found live: a file's upload-time job can
+     *     be lost from the Redis queue (e.g. a Redis restart) while the file's own
+     *     status row stays "uploaded" forever, with nothing in the UI to recover -
+     *     the frontend's only trigger for this pipeline was the one-shot enqueue at
+     *     upload time. Restricted to "uploaded"/"failed" - extraction isn't additive-
+     *     safe (a re-run on an already-"extracted" file would insert a second set of
+     *     duplicate Element rows), unlike /classify's append-only re-evaluation.
+     */
+    post: operations["reprocess_file_projects__project_id__files__file_id__reprocess_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -782,6 +810,11 @@ export interface components {
       uploaded_at: string;
       /** Job Id */
       job_id?: number | null;
+    };
+    /** JobIdOut */
+    JobIdOut: {
+      /** Id */
+      id: number;
     };
     /** JobOut */
     JobOut: {
@@ -1711,6 +1744,40 @@ export interface operations {
           "application/json": {
             [key: string]: unknown;
           };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  reprocess_file_projects__project_id__files__file_id__reprocess_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        file_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["JobIdOut"];
         };
       };
       /** @description Validation Error */

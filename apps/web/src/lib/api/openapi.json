@@ -677,7 +677,7 @@
       "get": {
         "tags": ["projects"],
         "summary": "Export Project Excel",
-        "description": "Phase 6.6 — same data as the CSV export, as a real .xlsx workbook\n(frozen header, column widths, autofilter). Not the client's real IBIS\nimport format - that template still hasn't arrived (see CLAUDE.md's\n\"Still open\" list) - just a genuinely Excel-shaped file to open today,\nswappable for the real template later without touching how rows are\nqueried (see _export_rows above, and app/ai/excel_export.py).",
+        "description": "A partial first step toward Phase 7.1 (not Phase 6.6, which is \"Audit\ntrail\" - a different, unbuilt feature - see app/ai/excel_export.py's\nmodule docstring for the full correction). Same data as the CSV export,\nas a real .xlsx workbook (frozen header, column widths, autofilter). Not\nthe client's real IBIS import format or 7.1's full three-sheet spec -\njust a genuinely Excel-shaped single sheet to open today, swappable\nlater without touching how rows are queried (see _export_rows above).",
         "operationId": "export_project_excel_projects__project_id__export_xlsx_get",
         "parameters": [
           {
@@ -849,6 +849,55 @@
                   "additionalProperties": true,
                   "title": "Response Classify File Projects  Project Id  Files  File Id  Classify Post"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/files/{file_id}/reprocess": {
+      "post": {
+        "tags": ["projects"],
+        "summary": "Reprocess File",
+        "description": "Retries the full extract -> classify -> fragments pipeline for a file\nwhose original job never finished. Found live: a file's upload-time job can\nbe lost from the Redis queue (e.g. a Redis restart) while the file's own\nstatus row stays \"uploaded\" forever, with nothing in the UI to recover -\nthe frontend's only trigger for this pipeline was the one-shot enqueue at\nupload time. Restricted to \"uploaded\"/\"failed\" - extraction isn't additive-\nsafe (a re-run on an already-\"extracted\" file would insert a second set of\nduplicate Element rows), unlike /classify's append-only re-evaluation.",
+        "operationId": "reprocess_file_projects__project_id__files__file_id__reprocess_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "File Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JobIdOut" }
               }
             }
           },
@@ -1912,6 +1961,12 @@
           "uploaded_at"
         ],
         "title": "IfcFileOut"
+      },
+      "JobIdOut": {
+        "properties": { "id": { "type": "integer", "title": "Id" } },
+        "type": "object",
+        "required": ["id"],
+        "title": "JobIdOut"
       },
       "JobOut": {
         "properties": {

@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ErrorState } from "@/components/shared/error-state";
 import { ElementTable } from "@/components/projects/element-table";
 import { ExportButton } from "@/components/projects/export-button";
+import { FileRow } from "@/components/projects/file-row";
 import { ProjectDialog } from "@/components/projects/project-dialog";
 import { ResultsOverview } from "@/components/projects/results-overview";
 import { UploadDropzone } from "@/components/projects/upload-dropzone";
@@ -113,24 +114,9 @@ export default function ProjectDetailPage() {
           <div className="space-y-2">
             <h2 className="text-sm font-medium">Files</h2>
             {files && files.length > 0 ? (
-              files.map((file) => {
-                const fileBadge = statusBadge(file.status);
-                return (
-                  <Card key={file.id}>
-                    <CardContent className="flex items-center justify-between">
-                      <span>{file.filename}</span>
-                      <div className="flex items-center gap-4">
-                        <span className="text-muted-foreground text-xs">
-                          {new Date(file.uploaded_at).toLocaleString()}
-                        </span>
-                        <Badge variant={fileBadge.variant}>
-                          {fileBadge.label}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })
+              files.map((file) => (
+                <FileRow key={file.id} projectId={projectId} file={file} />
+              ))
             ) : (
               <p className="text-muted-foreground text-sm">
                 No file uploaded yet.

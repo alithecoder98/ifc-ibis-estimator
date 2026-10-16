@@ -104,6 +104,10 @@ class SplitElementOut(BaseModel):
     child_element_ids: list[int]
 
 
+class JobIdOut(BaseModel):
+    id: int
+
+
 class ReviewCreate(BaseModel):
     action: Literal["approve", "correct"]
     # Required for "correct", ignored for "approve" (which carries over the
