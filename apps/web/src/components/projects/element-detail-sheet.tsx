@@ -18,8 +18,49 @@ import { ErrorState } from "@/components/shared/error-state";
 import { CodePickerDialog } from "@/components/projects/code-picker-dialog";
 import { statusBadge } from "@/lib/projects/status-badge";
 import { useElementDetail } from "@/lib/projects/use-element-detail";
+import { useSplitElement } from "@/lib/projects/use-split-element";
 import { useReviewElement } from "@/lib/reviews/use-review-element";
 import { useUndoReview } from "@/lib/reviews/use-undo-review";
+
+// detail.psets is {psetName: {propertyName: value}} - each pset's own values
+// are plain primitives in every real IFC file seen so far (ids, booleans,
+// enum strings), so this renders a scannable key/value list per pset instead
+// of the raw JSON.stringify dump this used to show - meant for an estimator
+// reviewing hundreds of elements, not a developer. A value that isn't a
+// primitive (an array/nested object some IFC variant might produce) falls
+// back to JSON.stringify for just that one cell, not the whole panel.
+function formatPsetValue(value: unknown): string {
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+  return JSON.stringify(value);
+}
+
+function PsetsDisplay({ psets }: { psets: Record<string, unknown> }) {
+  return (
+    <div className="space-y-3">
+      {Object.entries(psets).map(([psetName, properties]) => (
+        <div key={psetName}>
+          <p className="text-muted-foreground text-xs font-medium">
+            {psetName}
+          </p>
+          <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-sm">
+            {Object.entries(properties as Record<string, unknown>).map(
+              ([key, value]) => (
+                <div key={key} className="contents">
+                  <dt className="text-muted-foreground truncate">{key}</dt>
+                  <dd className="truncate">{formatPsetValue(value)}</dd>
+                </div>
+              ),
+            )}
+          </dl>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function Section({
   title,
@@ -56,6 +97,7 @@ export function ElementDetailSheet({
   const [codePickerOpen, setCodePickerOpen] = useState(false);
   const reviewElement = useReviewElement(projectId, elementId ?? -1);
   const undoReview = useUndoReview(projectId);
+  const splitElement = useSplitElement(projectId, elementId ?? -1);
 
   const handleApprove = useCallback(() => {
     reviewElement.mutate(
@@ -171,9 +213,9 @@ export function ElementDetailSheet({
                   </dd>
                 </dl>
                 {detail.psets && Object.keys(detail.psets).length > 0 && (
-                  <pre className="bg-muted mt-2 max-h-40 overflow-auto rounded-md p-2 text-xs">
-                    {JSON.stringify(detail.psets, null, 2)}
-                  </pre>
+                  <div className="mt-2 max-h-48 overflow-auto rounded-md border p-2">
+                    <PsetsDisplay psets={detail.psets} />
+                  </div>
                 )}
               </Section>
 
@@ -207,6 +249,32 @@ export function ElementDetailSheet({
                   <p className="text-muted-foreground text-sm">
                     No material data.
                   </p>
+                )}
+                {detail.split_child_ids.length > 0 ? (
+                  <p className="text-muted-foreground text-sm">
+                    Split into {detail.split_child_ids.length} layer
+                    {detail.split_child_ids.length === 1 ? "" : "s"} - find them
+                    in the Elements table as separate rows.
+                  </p>
+                ) : (
+                  detail.materials &&
+                  detail.materials.length > 1 && (
+                    <div className="space-y-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={splitElement.isPending}
+                        onClick={() => splitElement.mutate()}
+                      >
+                        Split into {detail.materials.length} layers
+                      </Button>
+                      {splitElement.isError && (
+                        <p className="text-sm text-red-600" role="alert">
+                          Couldn&apos;t split - please try again.
+                        </p>
+                      )}
+                    </div>
+                  )
                 )}
               </Section>
 

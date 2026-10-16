@@ -585,12 +585,100 @@
         }
       }
     },
+    "/projects/{project_id}/elements/{element_id}/split": {
+      "post": {
+        "tags": ["projects"],
+        "summary": "Split Element Endpoint",
+        "description": "Phase 6.2 - splits a composite element (e.g. a multi-layer wall) into\none real Element row per material layer. See app/ai/composite_split.py\nfor the quantity-splitting and double-counting-avoidance details.",
+        "operationId": "split_element_endpoint_projects__project_id__elements__element_id__split_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "element_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Element Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SplitElementOut" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/export": {
       "get": {
         "tags": ["projects"],
         "summary": "Export Project Csv",
         "description": "Phase P.3 — the minimal results output: every element in the project, its\nquantities, and its jev classification (if any), as a downloadable CSV.",
         "operationId": "export_project_csv_projects__project_id__export_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Project Id" }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/export.xlsx": {
+      "get": {
+        "tags": ["projects"],
+        "summary": "Export Project Excel",
+        "description": "Phase 6.6 — same data as the CSV export, as a real .xlsx workbook\n(frozen header, column widths, autofilter). Not the client's real IBIS\nimport format - that template still hasn't arrived (see CLAUDE.md's\n\"Still open\" list) - just a genuinely Excel-shaped file to open today,\nswappable for the real template later without touching how rows are\nqueried (see _export_rows above, and app/ai/excel_export.py).",
+        "operationId": "export_project_excel_projects__project_id__export_xlsx_get",
         "parameters": [
           {
             "name": "project_id",
@@ -1104,6 +1192,43 @@
                   "items": { "$ref": "#/components/schemas/CodeListOut" },
                   "title": "Response Search Codes Codes Search Get"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rules/suggest": {
+      "post": {
+        "tags": ["rules"],
+        "summary": "Suggest Rules",
+        "description": "Phase 6.5 - scans every correction for repeated patterns and proposes\nnew status=\"suggested\" rules. See app/ai/rule_suggestions.py.",
+        "operationId": "suggest_rules_rules_suggest_post",
+        "parameters": [
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RuleSuggestOut" }
               }
             }
           },
@@ -1650,6 +1775,11 @@
             "items": { "$ref": "#/components/schemas/ReviewOut" },
             "type": "array",
             "title": "Reviews"
+          },
+          "split_child_ids": {
+            "items": { "type": "integer" },
+            "type": "array",
+            "title": "Split Child Ids"
           }
         },
         "type": "object",
@@ -1669,7 +1799,8 @@
           "classification",
           "candidates",
           "similar_examples",
-          "reviews"
+          "reviews",
+          "split_child_ids"
         ],
         "title": "ElementDetailOut"
       },
@@ -1715,7 +1846,8 @@
           "status": {
             "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Status"
-          }
+          },
+          "is_split_parent": { "type": "boolean", "title": "Is Split Parent" }
         },
         "type": "object",
         "required": [
@@ -1732,7 +1864,8 @@
           "suggested_ibis_code",
           "internal_element",
           "confidence",
-          "status"
+          "status",
+          "is_split_parent"
         ],
         "title": "ElementRowOut"
       },
@@ -2031,6 +2164,13 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "source_corrections": {
+            "anyOf": [
+              { "items": { "type": "integer" }, "type": "array" },
+              { "type": "null" }
+            ],
+            "title": "Source Corrections"
           }
         },
         "type": "object",
@@ -2041,9 +2181,26 @@
           "result_internal_element",
           "priority",
           "status",
-          "created_at"
+          "created_at",
+          "source_corrections"
         ],
         "title": "RuleOut"
+      },
+      "RuleSuggestOut": {
+        "properties": {
+          "created": {
+            "items": { "$ref": "#/components/schemas/RuleOut" },
+            "type": "array",
+            "title": "Created"
+          },
+          "already_covered_count": {
+            "type": "integer",
+            "title": "Already Covered Count"
+          }
+        },
+        "type": "object",
+        "required": ["created", "already_covered_count"],
+        "title": "RuleSuggestOut"
       },
       "RuleUpdate": {
         "properties": {
@@ -2096,6 +2253,18 @@
           "final_internal_element"
         ],
         "title": "SimilarExampleOut"
+      },
+      "SplitElementOut": {
+        "properties": {
+          "child_element_ids": {
+            "items": { "type": "integer" },
+            "type": "array",
+            "title": "Child Element Ids"
+          }
+        },
+        "type": "object",
+        "required": ["child_element_ids"],
+        "title": "SplitElementOut"
       },
       "ThresholdOut": {
         "properties": {

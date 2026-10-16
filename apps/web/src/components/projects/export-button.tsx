@@ -4,21 +4,36 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
-// The export endpoint returns a raw CSV file (Content-Disposition: attachment),
+// The export endpoints return raw files (Content-Disposition: attachment),
 // not JSON - the typed apiClient (openapi-fetch) is built around JSON bodies, so
 // this bypasses it with a plain fetch, same credentials:"include" requirement for
 // the httpOnly auth cookie to cross the localhost:3000 <-> :8000 origin split.
-export function ExportButton({ projectId }: { projectId: number }) {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [error, setError] = useState(false);
+type Format = "csv" | "excel";
 
-  async function handleDownload() {
-    setIsDownloading(true);
-    setError(false);
+const FORMAT_CONFIG: Record<
+  Format,
+  { path: string; filename: string; label: string }
+> = {
+  csv: { path: "export", filename: "export.csv", label: "Download CSV" },
+  excel: {
+    path: "export.xlsx",
+    filename: "export.xlsx",
+    label: "Download Excel",
+  },
+};
+
+export function ExportButton({ projectId }: { projectId: number }) {
+  const [downloading, setDownloading] = useState<Format | null>(null);
+  const [error, setError] = useState<Format | null>(null);
+
+  async function handleDownload(format: Format) {
+    setDownloading(format);
+    setError(null);
     try {
       const baseUrl =
         process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-      const response = await fetch(`${baseUrl}/projects/${projectId}/export`, {
+      const { path, filename } = FORMAT_CONFIG[format];
+      const response = await fetch(`${baseUrl}/projects/${projectId}/${path}`, {
         credentials: "include",
       });
       if (!response.ok) throw new Error("export failed");
@@ -27,24 +42,43 @@ export function ExportButton({ projectId }: { projectId: number }) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `project-${projectId}-export.csv`;
+      link.download = `project-${projectId}-${filename}`;
       link.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError(true);
+      setError(format);
     } finally {
-      setIsDownloading(false);
+      setDownloading(null);
     }
   }
 
   return (
     <div className="space-y-2">
-      <Button onClick={handleDownload} disabled={isDownloading}>
-        {isDownloading ? "Preparing..." : "Download CSV"}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          onClick={() => handleDownload("csv")}
+          disabled={downloading !== null}
+        >
+          {downloading === "csv" ? "Preparing..." : "Download CSV"}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => handleDownload("excel")}
+          disabled={downloading !== null}
+        >
+          {downloading === "excel" ? "Preparing..." : "Download Excel"}
+        </Button>
+      </div>
+      {/* Not the client's real IBIS import format yet - that template hasn't
+          arrived (see CLAUDE.md). Same data as the CSV, as a real workbook. */}
+      <p className="text-muted-foreground text-xs">
+        Excel export uses a general layout, not the client&apos;s final IBIS
+        import template yet.
+      </p>
       {error && (
         <p className="text-sm text-red-600" role="alert">
-          Couldn&apos;t generate the export. Try again.
+          Couldn&apos;t generate the {error === "csv" ? "CSV" : "Excel"} export.
+          Try again.
         </p>
       )}
     </div>

@@ -1,7 +1,11 @@
 "use client";
 
 import * as OBC from "@thatopen/components";
+import { RenderedFaces } from "@thatopen/fragments";
+import type * as FRAGS from "@thatopen/fragments";
+import { Minus, Plus, Ruler } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +23,13 @@ import { useProjectElements } from "@/lib/projects/use-project-elements";
 
 const ALL = "__all__";
 
+const SELECTED_MATERIAL: FRAGS.MaterialDefinition = {
+  color: new THREE.Color("#4f46e5"), // indigo-600, matches the app's primary
+  renderedFaces: RenderedFaces.TWO, // highlight visible from both sides
+  opacity: 1,
+  transparent: false,
+};
+
 type Engine = {
   components: OBC.Components;
   world: OBC.SimpleWorld<
@@ -28,6 +39,7 @@ type Engine = {
   >;
   hider: OBC.Hider;
   clipper: OBC.Clipper;
+  fragments: OBC.FragmentsManager;
   modelId: string;
 };
 
@@ -37,17 +49,33 @@ type Engine = {
 export function Viewer3D({
   projectId,
   fileId,
+  selectedElementId,
+  onSelectElement,
 }: {
   projectId: number;
   fileId: number;
+  // Lifted to the parent page (Phase 5.2) so selecting an element in the
+  // Elements table highlights it here when you switch to the 3D tab, and
+  // clicking an element in 3D opens it in the Elements table when you switch
+  // back - the two tabs are never visible at once in this app's layout, so
+  // "sync" means the shared selection survives the tab switch, not a live
+  // side-by-side highlight.
+  selectedElementId?: number | null;
+  onSelectElement?: (elementId: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Engine | null>(null);
+  const highlightedLocalIdsRef = useRef<Set<number>>(new Set());
   const [engineReady, setEngineReady] = useState(false);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [clippingEnabled, setClippingEnabled] = useState(false);
   const [storeyFilter, setStoreyFilter] = useState(ALL);
+  const [classFilter, setClassFilter] = useState(ALL);
+  const [wireframeEnabled, setWireframeEnabled] = useState(false);
+  const [measureMode, setMeasureMode] = useState(false);
+  const [measureDistance, setMeasureDistance] = useState<number | null>(null);
+  const measurePointsRef = useRef<THREE.Vector3[]>([]);
 
   const model = useFragmentModel(projectId, fileId);
   const idMap = useFragmentIdMap(projectId, fileId);
@@ -60,6 +88,26 @@ export function Viewer3D({
       ] as string[],
     [elements],
   );
+  const ifcClasses = useMemo(
+    () => [...new Set((elements ?? []).map((e) => e.ifc_class))],
+    [elements],
+  );
+
+  // idMap.data is {global_id: local_id} - selection sync and click-to-select
+  // both need the reverse direction too (local_id -> element), built once per
+  // map/elements change rather than scanning on every click.
+  const localIdToElementId = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!idMap.data || !elements) return map;
+    const globalIdToElementId = new Map(
+      elements.map((e) => [e.global_id, e.id]),
+    );
+    for (const [globalId, localId] of Object.entries(idMap.data)) {
+      const elementId = globalIdToElementId.get(globalId);
+      if (elementId !== undefined) map.set(localId, elementId);
+    }
+    return map;
+  }, [idMap.data, elements]);
 
   // Set up the engine once per file. Three.js/WebGL can't run on the server,
   // and this component is only ever dynamically imported with ssr:false, but
@@ -85,12 +133,14 @@ export function Viewer3D({
 
     const hider = components.get(OBC.Hider);
     const clipper = components.get(OBC.Clipper);
+    const fragments = components.get(OBC.FragmentsManager);
 
     engineRef.current = {
       components,
       world,
       hider,
       clipper,
+      fragments,
       modelId: `file-${fileId}`,
     };
     setEngineReady(true);
@@ -100,6 +150,7 @@ export function Viewer3D({
       setModelLoaded(false);
       components.dispose();
       engineRef.current = null;
+      highlightedLocalIdsRef.current = new Set();
     };
   }, [fileId]);
 
@@ -112,14 +163,13 @@ export function Viewer3D({
     async function load() {
       if (!engine) return;
       try {
-        const fragments = engine.components.get(OBC.FragmentsManager);
-        if (!fragments.initialized) {
-          fragments.init(await OBC.FragmentsManager.getWorker());
+        if (!engine.fragments.initialized) {
+          engine.fragments.init(await OBC.FragmentsManager.getWorker());
         }
-        const loaded = await fragments.core.load(model.data as ArrayBuffer, {
-          modelId: engine.modelId,
-          camera: engine.world.camera.three,
-        });
+        const loaded = await engine.fragments.core.load(
+          model.data as ArrayBuffer,
+          { modelId: engine.modelId, camera: engine.world.camera.three },
+        );
         if (cancelled) return;
         // Without this, fragments renders with frustum culling disabled and
         // nothing becomes visible - confirmed live via a real console warning
@@ -127,7 +177,7 @@ export function Viewer3D({
         // that a blank canvas alone never surfaced.
         loaded.useCamera(engine.world.camera.three);
         engine.world.scene.three.add(loaded.object);
-        await fragments.core.update(true);
+        await engine.fragments.core.update(true);
         if (cancelled) return;
         await engine.world.camera.fit(engine.world.meshes);
         setModelLoaded(true);
@@ -146,9 +196,45 @@ export function Viewer3D({
     };
   }, [engineReady, model.data]);
 
+  // Selection sync (Phase 5.2): when the shared selection changes (e.g. the
+  // Elements table set it before this tab became active), highlight that one
+  // element and fit the camera to it. Clears the previous highlight first -
+  // FragmentsManager.resetHighlight() only clears what you pass it.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || !modelLoaded) return;
+
+    async function syncSelection() {
+      if (!engine) return;
+      if (highlightedLocalIdsRef.current.size > 0) {
+        await engine.fragments.resetHighlight({
+          [engine.modelId]: highlightedLocalIdsRef.current,
+        });
+        highlightedLocalIdsRef.current = new Set();
+      }
+      if (selectedElementId === null || selectedElementId === undefined) {
+        return;
+      }
+      const element = elements?.find((e) => e.id === selectedElementId);
+      const localId = element ? idMap.data?.[element.global_id] : undefined;
+      if (localId === undefined) return;
+
+      const items = { [engine.modelId]: new Set([localId]) };
+      await engine.fragments.highlight(SELECTED_MATERIAL, items);
+      highlightedLocalIdsRef.current = new Set([localId]);
+      await engine.world.camera.fitToItems(items);
+    }
+    syncSelection();
+  }, [selectedElementId, modelLoaded, elements, idMap.data]);
+
   function handleFit() {
     const engine = engineRef.current;
     if (engine) engine.world.camera.fit(engine.world.meshes);
+  }
+
+  function handleZoom(step: number) {
+    const engine = engineRef.current;
+    engine?.world.camera.controls.dolly(step, true);
   }
 
   function handleToggleClipping() {
@@ -163,20 +249,85 @@ export function Viewer3D({
     engineRef.current?.clipper.deleteAll();
   }
 
-  async function applyStoreyFilter(storey: string) {
+  function handleToggleWireframe() {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const next = !wireframeEnabled;
+    engine.world.scene.three.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+      for (const material of materials) {
+        if ("wireframe" in material) {
+          (material as THREE.MeshBasicMaterial).wireframe = next;
+        }
+      }
+    });
+    setWireframeEnabled(next);
+  }
+
+  // Storey and IFC-class filters combine (intersect), not override each
+  // other - an estimator narrowing to "Ground Floor" and then also to
+  // "IfcWall" expects both to apply together, same as the Elements table's
+  // own filters.
+  async function applyVisibilityFilters(storey: string, ifcClass: string) {
     const engine = engineRef.current;
     const map = idMap.data;
     if (!engine || !map || !elements) return;
 
-    if (storey === ALL) {
+    if (storey === ALL && ifcClass === ALL) {
       await engine.hider.set(true);
       return;
     }
     const localIds = elements
-      .filter((e) => e.storey === storey)
+      .filter(
+        (e) =>
+          (storey === ALL || e.storey === storey) &&
+          (ifcClass === ALL || e.ifc_class === ifcClass),
+      )
       .map((e) => map[e.global_id])
       .filter((id): id is number => id !== undefined);
     await engine.hider.isolate({ [engine.modelId]: new Set(localIds) });
+  }
+
+  function handleToggleMeasure() {
+    setMeasureMode((prev) => !prev);
+    setMeasureDistance(null);
+    measurePointsRef.current = [];
+  }
+
+  // Click-to-select (Phase 5.2) and click-to-measure share the same
+  // raycast - which behavior fires depends on whether measure mode is on.
+  async function handleCanvasClick(event: React.MouseEvent<HTMLDivElement>) {
+    const engine = engineRef.current;
+    if (!engine || !modelLoaded || !engine.world.renderer) return;
+    const canvas = engine.world.renderer.three.domElement;
+    const rect = canvas.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const result = await engine.fragments.raycast({
+      camera: engine.world.camera.three,
+      mouse,
+      dom: canvas,
+    });
+    if (!result) return;
+
+    if (measureMode) {
+      const points = [...measurePointsRef.current, result.point];
+      if (points.length < 2) {
+        measurePointsRef.current = points;
+        return;
+      }
+      setMeasureDistance(points[0].distanceTo(points[1]));
+      measurePointsRef.current = [];
+      return;
+    }
+
+    const elementId = localIdToElementId.get(result.localId);
+    if (elementId !== undefined) onSelectElement?.(elementId);
   }
 
   const isLoading = model.isLoading || idMap.isLoading;
@@ -193,6 +344,26 @@ export function Viewer3D({
         >
           Fit to model
         </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleZoom(5)}
+            disabled={!modelLoaded}
+            aria-label="Zoom in"
+          >
+            <Plus className="size-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleZoom(-5)}
+            disabled={!modelLoaded}
+            aria-label="Zoom out"
+          >
+            <Minus className="size-4" />
+          </Button>
+        </div>
         <Button
           size="sm"
           variant={clippingEnabled ? "default" : "outline"}
@@ -209,16 +380,38 @@ export function Viewer3D({
         >
           Clear cuts
         </Button>
+        <Button
+          size="sm"
+          variant={wireframeEnabled ? "default" : "outline"}
+          onClick={handleToggleWireframe}
+          disabled={!modelLoaded}
+        >
+          Wireframe
+        </Button>
+        <Button
+          size="sm"
+          variant={measureMode ? "default" : "outline"}
+          onClick={handleToggleMeasure}
+          disabled={!modelLoaded}
+        >
+          <Ruler className="mr-1 size-4" />
+          {measureMode ? "Click two points..." : "Measure"}
+        </Button>
         <Select
           value={storeyFilter}
           onValueChange={(value) => {
             const next = value ?? ALL;
             setStoreyFilter(next);
-            applyStoreyFilter(next);
+            applyVisibilityFilters(next, classFilter);
           }}
         >
           <SelectTrigger size="sm" disabled={!modelLoaded}>
-            <SelectValue placeholder="Storey" />
+            {/* Base UI's Select.Value shows the raw stored value unless
+                given a children render-prop (unlike Radix) - was showing
+                the literal "__all__" sentinel instead of "All storeys". */}
+            <SelectValue placeholder="Storey">
+              {(value: string) => (value === ALL ? "All storeys" : value)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All storeys</SelectItem>
@@ -229,6 +422,33 @@ export function Viewer3D({
             ))}
           </SelectContent>
         </Select>
+        <Select
+          value={classFilter}
+          onValueChange={(value) => {
+            const next = value ?? ALL;
+            setClassFilter(next);
+            applyVisibilityFilters(storeyFilter, next);
+          }}
+        >
+          <SelectTrigger size="sm" disabled={!modelLoaded}>
+            <SelectValue placeholder="IFC class">
+              {(value: string) => (value === ALL ? "All classes" : value)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All classes</SelectItem>
+            {ifcClasses.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {measureDistance !== null && (
+          <span className="bg-accent text-accent-foreground rounded-md px-2 py-1 text-sm font-medium tabular-nums">
+            {measureDistance.toFixed(3)} m
+          </span>
+        )}
       </div>
 
       {isError && (
@@ -245,8 +465,12 @@ export function Viewer3D({
 
       <div
         ref={containerRef}
+        onClick={handleCanvasClick}
         className="h-[600px] w-full overflow-hidden rounded-lg border"
-        style={{ display: isLoading || isError ? "none" : "block" }}
+        style={{
+          display: isLoading || isError ? "none" : "block",
+          cursor: measureMode ? "crosshair" : undefined,
+        }}
       />
     </div>
   );

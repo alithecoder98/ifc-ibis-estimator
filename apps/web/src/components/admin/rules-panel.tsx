@@ -25,6 +25,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { RuleDialog } from "@/components/admin/rule-dialog";
 import { useDeleteRule } from "@/lib/admin/use-delete-rule";
 import { useRules } from "@/lib/admin/use-rules";
+import { useSuggestRules } from "@/lib/admin/use-suggest-rules";
 import { useUpdateRule } from "@/lib/admin/use-update-rule";
 import type { components } from "@/lib/api/schema";
 
@@ -55,6 +56,7 @@ export function RulesPanel() {
   const { data: rules, isLoading, isError, refetch } = useRules(status);
   const updateRule = useUpdateRule();
   const deleteRule = useDeleteRule();
+  const suggestRules = useSuggestRules();
 
   function openCreate() {
     setEditingRule(undefined);
@@ -81,7 +83,19 @@ export function RulesPanel() {
           onValueChange={(v) => setStatusFilter(v ?? ALL)}
         >
           <SelectTrigger size="sm" className="w-40">
-            <SelectValue placeholder="Status" />
+            {/* Base UI's Select.Value shows the raw stored value unless given
+                a children render-prop (unlike Radix) - was showing the
+                literal "__all__" sentinel, and "active"/"suggested" instead
+                of their capitalized labels. */}
+            <SelectValue placeholder="Status">
+              {(value: string) =>
+                value === ALL
+                  ? "All statuses"
+                  : value === "active"
+                    ? "Active"
+                    : "Suggested"
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All statuses</SelectItem>
@@ -89,8 +103,36 @@ export function RulesPanel() {
             <SelectItem value="suggested">Suggested</SelectItem>
           </SelectContent>
         </Select>
-        <Button onClick={openCreate}>New rule</Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={suggestRules.isPending}
+            onClick={() => suggestRules.mutate()}
+          >
+            {suggestRules.isPending
+              ? "Scanning corrections..."
+              : "Suggest from corrections"}
+          </Button>
+          <Button onClick={openCreate}>New rule</Button>
+        </div>
       </div>
+
+      {suggestRules.isError && (
+        <ErrorState message="Couldn't scan corrections for rule suggestions." />
+      )}
+      {suggestRules.isSuccess && (
+        <p className="text-muted-foreground text-sm">
+          {suggestRules.data.created.length === 0
+            ? "No new patterns found."
+            : `${suggestRules.data.created.length} new rule${
+                suggestRules.data.created.length === 1 ? "" : "s"
+              } suggested.`}
+          {suggestRules.data.already_covered_count > 0 &&
+            ` (${suggestRules.data.already_covered_count} pattern${
+              suggestRules.data.already_covered_count === 1 ? "" : "s"
+            } already covered by an existing rule.)`}
+        </p>
+      )}
 
       {isLoading && (
         <div className="space-y-2">

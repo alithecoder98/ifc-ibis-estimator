@@ -253,6 +253,28 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/projects/{project_id}/elements/{element_id}/split": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Split Element Endpoint
+     * @description Phase 6.2 - splits a composite element (e.g. a multi-layer wall) into
+     *     one real Element row per material layer. See app/ai/composite_split.py
+     *     for the quantity-splitting and double-counting-avoidance details.
+     */
+    post: operations["split_element_endpoint_projects__project_id__elements__element_id__split_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/projects/{project_id}/export": {
     parameters: {
       query?: never;
@@ -266,6 +288,31 @@ export interface paths {
      *     quantities, and its jev classification (if any), as a downloadable CSV.
      */
     get: operations["export_project_csv_projects__project_id__export_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{project_id}/export.xlsx": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Export Project Excel
+     * @description Phase 6.6 — same data as the CSV export, as a real .xlsx workbook
+     *     (frozen header, column widths, autofilter). Not the client's real IBIS
+     *     import format - that template still hasn't arrived (see CLAUDE.md's
+     *     "Still open" list) - just a genuinely Excel-shaped file to open today,
+     *     swappable for the real template later without touching how rows are
+     *     queried (see _export_rows above, and app/ai/excel_export.py).
+     */
+    get: operations["export_project_excel_projects__project_id__export_xlsx_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -454,6 +501,27 @@ export interface paths {
     get: operations["search_codes_codes_search_get"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/rules/suggest": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Suggest Rules
+     * @description Phase 6.5 - scans every correction for repeated patterns and proposes
+     *     new status="suggested" rules. See app/ai/rule_suggestions.py.
+     */
+    post: operations["suggest_rules_rules_suggest_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -652,6 +720,8 @@ export interface components {
       similar_examples: components["schemas"]["SimilarExampleOut"][];
       /** Reviews */
       reviews: components["schemas"]["ReviewOut"][];
+      /** Split Child Ids */
+      split_child_ids: number[];
     };
     /** ElementRowOut */
     ElementRowOut: {
@@ -683,6 +753,8 @@ export interface components {
       confidence: number | null;
       /** Status */
       status: string | null;
+      /** Is Split Parent */
+      is_split_parent: boolean;
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -899,6 +971,15 @@ export interface components {
        * Format: date-time
        */
       created_at: string;
+      /** Source Corrections */
+      source_corrections: number[] | null;
+    };
+    /** RuleSuggestOut */
+    RuleSuggestOut: {
+      /** Created */
+      created: components["schemas"]["RuleOut"][];
+      /** Already Covered Count */
+      already_covered_count: number;
     };
     /** RuleUpdate */
     RuleUpdate: {
@@ -921,6 +1002,11 @@ export interface components {
       final_ibis_code: string;
       /** Final Internal Element */
       final_internal_element: string;
+    };
+    /** SplitElementOut */
+    SplitElementOut: {
+      /** Child Element Ids */
+      child_element_ids: number[];
     };
     /** ThresholdOut */
     ThresholdOut: {
@@ -1432,7 +1518,74 @@ export interface operations {
       };
     };
   };
+  split_element_endpoint_projects__project_id__elements__element_id__split_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        element_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SplitElementOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   export_project_csv_projects__project_id__export_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  export_project_excel_projects__project_id__export_xlsx_get: {
     parameters: {
       query?: never;
       header?: never;
@@ -1772,6 +1925,37 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CodeListOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  suggest_rules_rules_suggest_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RuleSuggestOut"];
         };
       };
       /** @description Validation Error */

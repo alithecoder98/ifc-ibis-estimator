@@ -38,6 +38,15 @@ export default function ProjectDetailPage() {
   const { data: files } = useProjectFiles(projectId);
   const [editOpen, setEditOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  // Lifted here (Phase 5.2) so selecting an element in the Elements table and
+  // switching to 3D highlights it there, and clicking an element in 3D and
+  // switching back opens it in the table - the two tabs are never visible at
+  // once in this layout, so this is "sync across a tab switch," not a live
+  // side-by-side highlight.
+  const [selectedElementId, setSelectedElementId] = useState<number | null>(
+    null,
+  );
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -131,7 +140,13 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="elements" className="pt-4">
-          <ElementTable projectId={projectId} />
+          <ElementTable
+            projectId={projectId}
+            selectedElementId={selectedElementId}
+            onSelectElement={setSelectedElementId}
+            sheetOpen={sheetOpen}
+            onSheetOpenChange={setSheetOpen}
+          />
         </TabsContent>
 
         <TabsContent value="3d" className="pt-4">
@@ -147,7 +162,16 @@ export default function ProjectDetailPage() {
             // Only actually mounted while this tab is the active one - a
             // hidden-but-mounted WebGL canvas would still hold a real context.
             return activeTab === "3d" ? (
-              <Viewer3D projectId={projectId} fileId={readyFile.id} />
+              <Viewer3D
+                projectId={projectId}
+                fileId={readyFile.id}
+                selectedElementId={selectedElementId}
+                onSelectElement={(elementId) => {
+                  setSelectedElementId(elementId);
+                  setSheetOpen(true);
+                  setActiveTab("elements");
+                }}
+              />
             ) : null;
           })()}
         </TabsContent>
