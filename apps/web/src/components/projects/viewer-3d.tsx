@@ -179,7 +179,13 @@ export function Viewer3D({
         engine.world.scene.three.add(loaded.object);
         await engine.fragments.core.update(true);
         if (cancelled) return;
-        await engine.world.camera.fit(engine.world.meshes);
+        // world.meshes is a separate bookkeeping Set nothing here ever
+        // populates - camera.fit(world.meshes) silently no-ops on an empty
+        // Set, which is why the model used to load tiny and off-center with
+        // every zoom/pan looking like it "didn't work." fitToItems() with no
+        // argument fits every model FragmentsManager has loaded instead - the
+        // same method the selection-sync effect below already uses correctly.
+        await engine.world.camera.fitToItems();
         setModelLoaded(true);
       } catch (err) {
         if (!cancelled) {
@@ -229,7 +235,10 @@ export function Viewer3D({
 
   function handleFit() {
     const engine = engineRef.current;
-    if (engine) engine.world.camera.fit(engine.world.meshes);
+    // See the load effect above - fitToItems() with no argument fits all
+    // loaded models, unlike the old camera.fit(world.meshes) call which
+    // always fit an empty Set and never actually moved the camera.
+    if (engine) engine.world.camera.fitToItems();
   }
 
   function handleZoom(step: number) {
@@ -289,6 +298,19 @@ export function Viewer3D({
       .map((e) => map[e.global_id])
       .filter((id): id is number => id !== undefined);
     await engine.hider.isolate({ [engine.modelId]: new Set(localIds) });
+  }
+
+  // The "double-click to cut" label was a promise the code never kept -
+  // Clipper never attaches its own dblclick listener (confirmed by reading
+  // its source: setEvents() only wires onBeforeDelete and fragment-material
+  // subscriptions), so enabling clipping previously just flipped an internal
+  // flag with no visible effect. Clipper.create() reads the mouse position
+  // Raycasters/Mouse already track automatically from real pointer events,
+  // so this only needs to call it, not do any raycasting itself.
+  async function handleCanvasDoubleClick() {
+    const engine = engineRef.current;
+    if (!engine || !clippingEnabled) return;
+    await engine.clipper.create(engine.world);
   }
 
   function handleToggleMeasure() {
@@ -466,6 +488,7 @@ export function Viewer3D({
       <div
         ref={containerRef}
         onClick={handleCanvasClick}
+        onDoubleClick={handleCanvasDoubleClick}
         className="h-[600px] w-full overflow-hidden rounded-lg border"
         style={{
           display: isLoading || isError ? "none" : "block",
