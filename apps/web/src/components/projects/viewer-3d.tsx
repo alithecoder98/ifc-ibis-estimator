@@ -246,12 +246,24 @@ export function Viewer3D({
     engine?.world.camera.controls.dolly(step, true);
   }
 
+  // Clipping and Measure both repurpose the canvas's click/double-click
+  // gestures, and nothing kept them mutually exclusive - confirmed live
+  // (reported as "buttons not working properly"): with both toggled on, a
+  // double-click's two leading click events still fed the measure-point
+  // collector while the trailing dblclick simultaneously created a clipping
+  // plane, racing each other on the same gesture. Turning one on now turns
+  // the other off, same as a toolbar's exclusive tool selection.
   function handleToggleClipping() {
     const engine = engineRef.current;
     if (!engine) return;
     const next = !clippingEnabled;
     engine.clipper.enabled = next;
     setClippingEnabled(next);
+    if (next) {
+      setMeasureMode(false);
+      setMeasureDistance(null);
+      measurePointsRef.current = [];
+    }
   }
 
   function handleClearClipping() {
@@ -314,9 +326,15 @@ export function Viewer3D({
   }
 
   function handleToggleMeasure() {
-    setMeasureMode((prev) => !prev);
+    const next = !measureMode;
+    setMeasureMode(next);
     setMeasureDistance(null);
     measurePointsRef.current = [];
+    if (next && clippingEnabled) {
+      const engine = engineRef.current;
+      if (engine) engine.clipper.enabled = false;
+      setClippingEnabled(false);
+    }
   }
 
   // Click-to-select (Phase 5.2) and click-to-measure share the same
