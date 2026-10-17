@@ -5,17 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import { useLogout } from "@/lib/auth/use-logout";
 
 // Client-side route protection: GET /auth/me decides whether to render. The real
 // security boundary is the backend (401/403 on every protected endpoint) — this just
@@ -28,7 +20,6 @@ export default function ProtectedLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { data: user, isLoading, isError } = useCurrentUser();
-  const logout = useLogout();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -56,10 +47,6 @@ export default function ProtectedLayout({
         </div>
       </div>
     );
-  }
-
-  function handleLogout() {
-    logout.mutate(undefined, { onSuccess: () => router.push("/login") });
   }
 
   const navLinkClass = (href: string) => {
@@ -116,7 +103,7 @@ export default function ProtectedLayout({
         </nav>
       </aside>
       <div className="min-w-0 flex-1">
-        <header className="bg-background/80 flex items-center justify-between border-b p-4 backdrop-blur-sm md:justify-end">
+        <header className="bg-background/80 flex items-center border-b p-4 backdrop-blur-sm">
           <Button
             variant="ghost"
             size="icon"
@@ -126,27 +113,6 @@ export default function ProtectedLayout({
           >
             <Menu className="size-4" />
           </Button>
-          <DropdownMenu>
-            {/* Base UI (not Radix) under this shadcn version: composition is via
-                `render`, not `asChild`. */}
-            <DropdownMenuTrigger
-              render={
-                <Button variant="ghost" className="flex items-center gap-2">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback>
-                      {user.email[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  {user.email}
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleLogout}>
-                Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </header>
         <main className="min-w-0 p-6">{children}</main>
       </div>
