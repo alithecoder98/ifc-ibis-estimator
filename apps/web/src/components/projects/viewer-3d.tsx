@@ -3,7 +3,7 @@
 import * as OBC from "@thatopen/components";
 import { RenderedFaces } from "@thatopen/fragments";
 import type * as FRAGS from "@thatopen/fragments";
-import { Minus, Plus, Ruler } from "lucide-react";
+import { Minus, Plus, RotateCcw, Ruler } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
@@ -270,10 +270,9 @@ export function Viewer3D({
     engineRef.current?.clipper.deleteAll();
   }
 
-  function handleToggleWireframe() {
+  function setWireframe(enabled: boolean) {
     const engine = engineRef.current;
     if (!engine) return;
-    const next = !wireframeEnabled;
     engine.world.scene.three.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       const materials = Array.isArray(object.material)
@@ -281,11 +280,15 @@ export function Viewer3D({
         : [object.material];
       for (const material of materials) {
         if ("wireframe" in material) {
-          (material as THREE.MeshBasicMaterial).wireframe = next;
+          (material as THREE.MeshBasicMaterial).wireframe = enabled;
         }
       }
     });
-    setWireframeEnabled(next);
+    setWireframeEnabled(enabled);
+  }
+
+  function handleToggleWireframe() {
+    setWireframe(!wireframeEnabled);
   }
 
   // Storey and IFC-class filters combine (intersect), not override each
@@ -337,6 +340,31 @@ export function Viewer3D({
     }
   }
 
+  // Undoes every view manipulation in one action - clipping planes, wireframe,
+  // measure state, and the storey/class filters all accumulate independently
+  // of each other, so there was no single way back to "what the model looks
+  // like by default" short of manually reversing each one.
+  async function handleReset() {
+    const engine = engineRef.current;
+    if (!engine) return;
+
+    engine.clipper.enabled = false;
+    engine.clipper.deleteAll();
+    setClippingEnabled(false);
+
+    setMeasureMode(false);
+    setMeasureDistance(null);
+    measurePointsRef.current = [];
+
+    setWireframe(false);
+
+    setStoreyFilter(ALL);
+    setClassFilter(ALL);
+    await applyVisibilityFilters(ALL, ALL);
+
+    await engine.world.camera.fitToItems();
+  }
+
   // Click-to-select (Phase 5.2) and click-to-measure share the same
   // raycast - which behavior fires depends on whether measure mode is on.
   async function handleCanvasClick(event: React.MouseEvent<HTMLDivElement>) {
@@ -376,6 +404,15 @@ export function Viewer3D({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleReset}
+          disabled={!modelLoaded}
+        >
+          <RotateCcw className="mr-1 size-4" />
+          Reset
+        </Button>
         <Button
           size="sm"
           variant="outline"
