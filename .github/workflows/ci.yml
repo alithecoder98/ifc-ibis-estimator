@@ -35,6 +35,9 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://ifc_ibis:ifc_ibis_dev@localhost:5432/ifc_ibis
       REDIS_URL: redis://localhost:6379/0
+      S3_ENDPOINT_URL: http://localhost:3900
+      S3_BUCKET: ifc-uploads
+      S3_REGION: garage
     steps:
       - uses: actions/checkout@v4
 
@@ -60,6 +63,60 @@ jobs:
 
       - name: Black
         run: uv run black --check .
+
+      - name: Start Garage (S3-compatible storage)
+        # Every test that uploads/downloads a real file (extraction, export,
+        # fragments, upload endpoints) hits real S3-compatible storage, not a
+        # mock - found live: CI has been failing on every single push since the
+        # repo was first made public because this was never set up here at all,
+        # only Postgres/Redis were. The declarative `services:` block above
+        # can't mount a config file, and Garage needs one (two generated
+        # secrets, data/meta dirs) - see garage/garage.toml.example - so this
+        # starts it as a plain container step instead, mirroring both
+        # docker-compose.yml's garage service and the bootstrap sequence
+        # README.md documents for local setup. classification_engine defaults
+        # to "jev" (a stub, not a real call) in every test that doesn't
+        # explicitly ask for the LLM engine, so Ollama is never actually
+        # needed here - confirmed by checking classify_elements() only builds
+        # an embedder/LLM client when engine is "llm"/"both".
+        run: |
+          mkdir -p /tmp/garage/data /tmp/garage/meta
+          cat > /tmp/garage/garage.toml <<EOF
+          metadata_dir = "/var/lib/garage/meta"
+          data_dir = "/var/lib/garage/data"
+          db_engine = "lmdb"
+          replication_factor = 1
+          rpc_bind_addr = "[::]:3901"
+          rpc_public_addr = "127.0.0.1:3901"
+          rpc_secret = "$(openssl rand -hex 32)"
+          [s3_api]
+          s3_region = "garage"
+          api_bind_addr = "[::]:3900"
+          root_domain = ".s3.garage.localhost"
+          [admin]
+          api_bind_addr = "[::]:3903"
+          admin_token = "$(openssl rand -hex 32)"
+          EOF
+          docker run -d --name garage --network host \
+            -v /tmp/garage/garage.toml:/etc/garage.toml:ro \
+            -v /tmp/garage/data:/var/lib/garage/data \
+            -v /tmp/garage/meta:/var/lib/garage/meta \
+            dxflrs/garage:v1.0.1
+
+          for i in $(seq 1 20); do
+            docker exec garage /garage status && break
+            sleep 2
+          done
+
+          NODE_ID=$(docker exec garage /garage status | grep -A2 "HEALTHY NODES" | tail -1 | awk '{print $1}')
+          docker exec garage /garage layout assign "$NODE_ID" -z dc1 -c 1G
+          docker exec garage /garage layout apply --version 1
+          docker exec garage /garage bucket create ifc-uploads
+          docker exec garage /garage key create ifc-ibis-ci-key > /tmp/garage/key-output.txt
+          docker exec garage /garage bucket allow --read --write ifc-uploads --key ifc-ibis-ci-key
+
+          echo "S3_ACCESS_KEY=$(grep '^Key ID:' /tmp/garage/key-output.txt | awk '{print $3}')" >> "$GITHUB_ENV"
+          echo "S3_SECRET_KEY=$(grep '^Secret key:' /tmp/garage/key-output.txt | awk '{print $3}')" >> "$GITHUB_ENV"
 
       - name: Apply migrations
         run: uv run alembic upgrade head
